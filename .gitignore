@@ -40,7 +40,7 @@ EmuHub/
 │       └── index.html
 ├── assets/
 │   └── icon.ico
-├── screenshots/          ← add these
+├── screenshots/          
 │   ├── library.png
 │   ├── settings.png
 │   └── launch.png
