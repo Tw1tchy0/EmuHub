@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EmuHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════ TOKENS */
+:root {
+  --bg:      #080810; --panel:   #0e0e1c; --panel2:  #13131f;
+  --border:  #1c1c32; --border2: #252540;
+  --a1:      #00f0ff; --a2:      #ff0066; --a3:      #7c3aed;
+  --text:    #dde0f0; --muted:   #52527a; --muted2:  #38385a;
+  --ok:      #22c55e; --warn:    #f59e0b; --err:     #ef4444;
+}
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; user-select:none; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  display:flex; flex-direction:column;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 15% 60%,rgba(124,58,237,.06) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 10%,rgba(0,240,255,.05) 0%,transparent 55%);
+}
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9000;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.018) 3px,rgba(0,0,0,.018) 4px);
+}
+
+/* ════════════════════════════════════════════ TITLEBAR */
+#titlebar {
+  height:46px; background:rgba(8,8,16,.97); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 0 0 18px;
+  flex-shrink:0; z-index:500;
+}
+.tb-logo { font-family:'Orbitron',monospace; font-weight:900; font-size:17px; letter-spacing:7px; color:var(--a1); text-shadow:0 0 18px rgba(0,240,255,.6); }
+.tb-logo em { color:var(--a2); font-style:normal; }
+.tb-pill { display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.035); border:1px solid var(--border2); border-radius:20px; padding:5px 13px; font-family:'Orbitron',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; margin-left:20px; }
+.tb-dot { width:6px; height:6px; border-radius:50%; background:var(--a1); box-shadow:0 0 7px var(--a1); animation:blink 2.4s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 55%{opacity:.3} }
+.tb-spacer { flex:1; }
+.tb-icon-btn { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:5px 12px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; border-radius:4px; cursor:pointer; transition:all .18s; margin-right:8px; }
+.tb-icon-btn:hover { border-color:var(--a1); color:var(--a1); }
+.wc { display:flex; height:46px; }
+.wc button { width:46px; height:100%; border:none; background:transparent; color:var(--muted); font-size:16px; cursor:pointer; transition:background .15s,color .15s; display:flex; align-items:center; justify-content:center; }
+.wc button:hover { background:rgba(255,255,255,.08); color:var(--text); }
+#wc-close:hover { background:#c42b1c; color:#fff; }
+
+/* ════════════════════════════════════════════ LAYOUT */
+#layout { flex:1; display:grid; grid-template-columns:215px 1fr; overflow:hidden; }
+
+/* ════════════════════════════════════════════ SIDEBAR */
+#sidebar { background:rgba(14,14,28,.65); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; padding:18px 0 24px; }
+.sb-section { padding:0 14px; margin-bottom:22px; }
+.sb-label { font-family:'Orbitron',monospace; font-size:8px; letter-spacing:3px; color:var(--muted2); text-transform:uppercase; margin-bottom:9px; padding-bottom:7px; border-bottom:1px solid var(--border); }
+.f-btn { display:flex; align-items:center; gap:9px; width:100%; background:transparent; border:none; color:var(--text); padding:8px 10px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; text-align:left; transition:background .15s,color .15s; position:relative; }
+.f-btn:hover { background:rgba(255,255,255,.04); }
+.f-btn.active { background:rgba(0,240,255,.07); color:var(--a1); }
+.f-btn.active::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:55%; background:var(--a1); border-radius:0 2px 2px 0; box-shadow:0 0 8px var(--a1); }
+.cdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.cbadge { margin-left:auto; background:rgba(255,255,255,.055); border-radius:9px; padding:2px 7px; font-size:9px; font-family:'Orbitron',monospace; color:var(--muted); }
+.sb-spacer { flex:1; }
+.emu-row { padding:5px 10px; }
+.emu-name { font-weight:600; font-size:12px; color:var(--text); }
+.emu-ver { font-size:9px; color:var(--muted); font-family:'Orbitron',monospace; letter-spacing:.8px; margin-top:1px; }
+.emu-warn { font-size:9px; color:var(--warn); font-family:'Orbitron',monospace; margin-top:1px; }
+
+/* ════════════════════════════════════════════ CONTENT */
+#content { display:flex; flex-direction:column; overflow:hidden; }
+#toolbar { padding:16px 22px 0; display:flex; gap:10px; align-items:center; flex-shrink:0; }
+.search-wrap { flex:1; position:relative; }
+.search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+#search { width:100%; background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--text); padding:9px 12px 9px 34px; font-family:'Rajdhani',sans-serif; font-size:14px; outline:none; transition:border-color .2s; }
+#search:focus { border-color:var(--a1); }
+#search::placeholder { color:var(--muted); }
+#sort { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:7px; font-family:'Rajdhani',sans-serif; font-size:13px; outline:none; cursor:pointer; }
+#refresh-btn { background:transparent; border:1px solid var(--a1); color:var(--a1); padding:8px 16px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; cursor:pointer; border-radius:4px; transition:background .18s; white-space:nowrap; }
+#refresh-btn:hover { background:rgba(0,240,255,.08); }
+#section-bar { display:flex; align-items:center; gap:10px; padding:12px 22px 8px; flex-shrink:0; }
+#section-bar h2 { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; }
+.sec-line { flex:1; height:1px; background:var(--border); }
+#count-lbl { font-family:'Orbitron',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; }
+
+/* ════════════════════════════════════════════ GRID */
+#grid {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 22px 24px;
+  display: grid;
+  /* Fixed 185px columns — never shrink to fit.
+     Extra games add rows; the grid scrolls vertically. */
+  grid-template-columns: repeat(auto-fill, 185px);
+  gap: 16px;
+  align-content: start;
+}
+
+/* ── Card ────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* NO overflow:hidden here — that was clipping the info strip.
+     Each child handles its own overflow. */
+  cursor: pointer;
+  position: relative;
+  animation: pop .32s ease forwards;
+  opacity: 0;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+  width: 185px;                 /* fixed width — matches column track */
+  flex-shrink: 0;
+}
+@keyframes pop { from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+.card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(0,240,255,.4);
+  box-shadow: 0 12px 36px rgba(0,0,0,.5), 0 0 22px rgba(0,240,255,.07);
+}
+
+.card-bar { height: 4px; border-radius: 10px 10px 0 0; flex-shrink: 0; }
+
+/* ── Cover image area ────────────────────────────── */
+/* Fixed pixel height so the image never squishes or clips the info strip below.
+   255px gives a good portrait feel at 185px wide (≈ 1.38 ratio). */
+.cover {
+  width: 100%;
+  height: 255px;
+  position: relative;
+  overflow: hidden;          /* clips the image zoom on hover — correct */
+  flex-shrink: 0;
+  border-radius: 0;
+}
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  transition: transform .32s;
+}
+.card:hover .cover img { transform: scale(1.06); }
+.cover-ph { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+.cover-ph .ph-icon { font-size:38px; opacity:.45; }
+.cover-ph .ph-name { font-family:'Orbitron',monospace; font-size:7.5px; letter-spacing:1.5px; color:var(--muted); text-align:center; padding:0 8px; line-height:1.5; }
+.cover-spin { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(8,8,16,.6); }
+.spin { width:22px; height:22px; border:2px solid var(--border2); border-top-color:var(--a1); border-radius:50%; animation:rotate .65s linear infinite; }
+@keyframes rotate { to{transform:rotate(360deg)} }
+.play-ov { position:absolute; inset:0; background:rgba(0,240,255,.06); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .2s; backdrop-filter:blur(3px); }
+.play-circle { background:var(--a1); color:#000; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:900; box-shadow:0 0 28px rgba(0,240,255,.65); transform:scale(.75); transition:transform .2s; }
+.card:hover .play-ov { opacity:1; }
+.card:hover .play-circle { transform:scale(1); }
+
+/* ── Info strip — always fully visible ──────────── */
+.card-info {
+  padding: 9px 11px 11px;
+  /* Explicit background so rounded bottom corners look clean */
+  background: var(--panel);
+  border-radius: 0 0 10px 10px;
+}
+.card-title { font-size:13px; font-weight:600; color:var(--text); line-height:1.3; margin-bottom:5px; }
+.card-tag { font-family:'Orbitron',monospace; font-size:7.5px; letter-spacing:1.5px; padding:2px 7px; border-radius:3px; font-weight:700; display:inline-block; }
+.empty { grid-column:1/-1; text-align:center; padding:70px 20px; color:var(--muted); }
+.empty .e-icon { font-size:52px; margin-bottom:14px; opacity:.3; display:block; }
+.empty p { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; }
+.empty small { display:block; margin-top:8px; font-size:10px; }
+
+/* ════════════════════════════════════════════ LAUNCH MODAL */
+.modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.8); backdrop-filter:blur(12px); z-index:800; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .22s; }
+.modal-bg.open { opacity:1; pointer-events:all; }
+.modal { background:var(--panel); border:1px solid var(--border2); border-radius:14px; overflow:hidden; transform:scale(.94) translateY(18px); transition:transform .22s; box-shadow:0 32px 80px rgba(0,0,0,.7); }
+.modal-bg.open .modal { transform:scale(1) translateY(0); }
+
+#launch-modal { width:550px; max-width:92vw; }
+#modal-head { display:flex; align-items:stretch; border-bottom:1px solid var(--border); }
+#modal-cover { width:125px; flex-shrink:0; overflow:hidden; background:#050509; display:flex; align-items:center; justify-content:center; }
+#modal-cover img { width:100%; height:100%; object-fit:cover; object-position:top; display:block; }
+#modal-cover .modal-ph { font-size:52px; padding:20px; }
+#modal-meta { padding:20px 22px; flex:1; display:flex; flex-direction:column; justify-content:center; }
+#modal-con-tag { font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; font-weight:700; margin-bottom:8px; }
+#modal-title { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; line-height:1.35; color:var(--text); }
+#modal-file { margin-top:6px; font-size:11px; color:var(--muted); word-break:break-all; }
+#modal-body { padding:20px; }
+.info-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.ii label { font-size:8.5px; letter-spacing:2px; color:var(--muted); font-family:'Orbitron',monospace; display:block; margin-bottom:2px; }
+.ii .v { font-size:13px; font-weight:600; color:var(--text); word-break:break-all; }
+.cmd-block { background:rgba(0,0,0,.35); border:1px solid var(--border); border-radius:7px; padding:10px 14px; font-family:'Orbitron',monospace; font-size:8.5px; color:var(--muted); letter-spacing:.5px; margin-bottom:16px; line-height:1.8; word-break:break-all; }
+.cmd-block .cl { color:var(--a1); font-size:8px; letter-spacing:2px; margin-bottom:3px; display:block; }
+.modal-btns { display:flex; gap:10px; }
+.btn-primary { flex:1; background:var(--a1); color:#000; border:none; border-radius:7px; padding:13px; font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:3px; cursor:pointer; transition:all .2s; box-shadow:0 0 18px rgba(0,240,255,.3); }
+.btn-primary:hover { box-shadow:0 0 28px rgba(0,240,255,.55); transform:translateY(-1px); }
+.btn-primary:disabled { opacity:.45; cursor:default; transform:none; box-shadow:none; }
+.btn-ghost { background:transparent; border:1px solid var(--border2); color:var(--muted); border-radius:7px; padding:13px 18px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; cursor:pointer; transition:all .2s; }
+.btn-ghost:hover { border-color:var(--muted); color:var(--text); }
+
+/* ════════════════════════════════════════════ SETTINGS MODAL */
+#settings-modal { width:720px; max-width:95vw; max-height:88vh; display:flex; flex-direction:column; }
+.smodal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 24px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.smodal-header h2 { font-family:'Orbitron',monospace; font-size:14px; letter-spacing:4px; color:var(--a1); }
+.smodal-close { background:transparent; border:none; color:var(--muted); font-size:20px; cursor:pointer; transition:color .15s; line-height:1; }
+.smodal-close:hover { color:var(--a2); }
+
+.stabs { display:flex; gap:0; border-bottom:1px solid var(--border); flex-shrink:0; padding:0 24px; }
+.stab { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 18px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; cursor:pointer; transition:all .18s; margin-bottom:-1px; }
+.stab:hover { color:var(--text); }
+.stab.active { color:var(--a1); border-bottom-color:var(--a1); }
+
+.spanel { display:none; flex:1; overflow-y:auto; padding:20px 24px; }
+.spanel.active { display:block; }
+
+/* settings rows */
+.s-section-head { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:var(--muted2); text-transform:uppercase; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.s-row { margin-bottom:16px; }
+.s-row label { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.s-row label .badge-ok   { background:rgba(34,197,94,.15); color:var(--ok); padding:1px 7px; border-radius:3px; font-size:8px; }
+.s-row label .badge-warn { background:rgba(245,158,11,.15); color:var(--warn); padding:1px 7px; border-radius:3px; font-size:8px; }
+.s-row label .badge-err  { background:rgba(239,68,68,.15); color:var(--err); padding:1px 7px; border-radius:3px; font-size:8px; }
+.s-path-row { display:flex; gap:8px; align-items:center; }
+.s-input-wrap { flex:1; position:relative; display:flex; align-items:center; }
+.s-path-input { width:100%; background:rgba(0,0,0,.4); border:1px solid var(--border2); color:var(--text); padding:8px 30px 8px 12px; border-radius:6px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:.5px; outline:none; transition:border-color .2s; }
+.s-path-input:focus { border-color:var(--a1); }
+.s-path-input.valid { border-color:rgba(34,197,94,.4); }
+.s-path-input.invalid { border-color:rgba(239,68,68,.4); }
+.s-clear-btn {
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  background:transparent; border:none; color:var(--muted2);
+  font-size:14px; line-height:1; cursor:pointer;
+  padding:2px 3px; border-radius:3px;
+  transition:color .15s, background .15s;
+  display:none;   /* hidden when input is empty */
+}
+.s-clear-btn:hover { color:var(--a2); background:rgba(255,0,102,.1); }
+.s-clear-btn.visible { display:block; }
+.s-browse-btn { background:transparent; border:1px solid var(--border2); color:var(--muted); padding:8px 12px; border-radius:6px; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; cursor:pointer; white-space:nowrap; transition:all .18s; }
+.s-browse-btn:hover { border-color:var(--a1); color:var(--a1); }
+
+/* emulator cards in settings */
+.emu-card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px; }
+.emu-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.emu-card-name { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:var(--text); }
+.emu-card-consoles { display:flex; gap:4px; }
+
+/* detected emulators */
+.detected-card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:10px; }
+.detected-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.detected-name { font-family:'Orbitron',monospace; font-size:11px; color:var(--text); font-weight:700; }
+.detected-path { font-size:11px; color:var(--muted); margin-top:3px; word-break:break-all; line-height:1.4; }
+.detected-tags { display:flex; gap:4px; flex-wrap:wrap; margin-top:8px; }
+.btn-apply { background:rgba(0,240,255,.1); border:1px solid rgba(0,240,255,.3); color:var(--a1); padding:6px 14px; border-radius:5px; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; cursor:pointer; transition:all .18s; white-space:nowrap; flex-shrink:0; }
+.btn-apply:hover { background:rgba(0,240,255,.2); }
+.btn-apply.applied { background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.3); color:var(--ok); cursor:default; }
+
+/* other emulator cards */
+.other-card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:14px; }
+.other-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.other-card-title { font-family:'Orbitron',monospace; font-size:10px; color:var(--a1); letter-spacing:2px; }
+.btn-remove-other { background:transparent; border:1px solid rgba(239,68,68,.3); color:var(--err); padding:4px 10px; border-radius:4px; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:1px; cursor:pointer; transition:all .18s; }
+.btn-remove-other:hover { background:rgba(239,68,68,.1); }
+.other-ext-hint { font-size:10px; color:var(--muted); margin-top:5px; line-height:1.5; }
+.apikey-section { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+.apikey-status { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.key-indicator { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.key-indicator.set { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+.key-indicator.unset { background:var(--err); box-shadow:0 0 8px var(--err); }
+.apikey-status-text { font-family:'Orbitron',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; }
+.key-input-row { display:flex; gap:8px; align-items:center; }
+.key-input { flex:1; background:rgba(0,0,0,.5); border:1px solid var(--border2); color:var(--text); padding:9px 12px; border-radius:6px; font-family:'Orbitron',monospace; font-size:10px; letter-spacing:1px; outline:none; transition:border-color .2s; }
+.key-input:focus { border-color:var(--a1); }
+.key-input::placeholder { color:var(--muted2); letter-spacing:.5px; }
+.btn-save-key { background:var(--a1); color:#000; border:none; border-radius:6px; padding:9px 18px; font-family:'Orbitron',monospace; font-size:9px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:all .2s; }
+.btn-save-key:hover { box-shadow:0 0 16px rgba(0,240,255,.4); }
+.btn-del-key { background:transparent; border:1px solid rgba(239,68,68,.3); color:var(--err); border-radius:6px; padding:9px 14px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:1px; cursor:pointer; transition:all .18s; }
+.btn-del-key:hover { background:rgba(239,68,68,.1); }
+.key-hint { font-size:11px; color:var(--muted); margin-top:10px; line-height:1.6; }
+.key-hint a { color:var(--a1); text-decoration:none; }
+
+/* save bar */
+.smodal-footer { padding:14px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; flex-shrink:0; }
+
+/* scanning animation */
+.scan-indicator { display:flex; align-items:center; gap:8px; font-family:'Orbitron',monospace; font-size:9px; color:var(--a1); letter-spacing:2px; padding:8px 0; }
+
+/* ════════════════════════════════════════════ TOAST */
+#toast { position:fixed; bottom:18px; right:18px; background:var(--panel); border:1px solid var(--a1); border-radius:10px; padding:12px 18px; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; color:var(--text); box-shadow:0 0 22px rgba(0,240,255,.18); transform:translateY(60px); opacity:0; transition:all .26s; z-index:9999; max-width:340px; pointer-events:none; }
+#toast.show { transform:translateY(0); opacity:1; }
+#toast.err  { border-color:var(--a2); box-shadow:0 0 22px rgba(255,0,102,.2); }
+#toast .tt  { color:var(--a1); font-size:9px; font-family:'Orbitron',monospace; letter-spacing:2px; margin-bottom:2px; }
+#toast.err .tt { color:var(--a2); }
+
+/* ════════════════════════════════════════════ RESIZE GRIPS */
+/* Invisible hit-areas around the window edge for resizing */
+.rg {
+  position: fixed;
+  z-index: 9999;
+}
+.rg-n  { top:0;    left:6px;  right:6px;  height:5px; cursor:n-resize;  }
+.rg-s  { bottom:0; left:6px;  right:6px;  height:5px; cursor:s-resize;  }
+.rg-e  { top:6px;  right:0;   bottom:6px; width:5px;  cursor:e-resize;  }
+.rg-w  { top:6px;  left:0;    bottom:6px; width:5px;  cursor:w-resize;  }
+.rg-nw { top:0;    left:0;    width:10px; height:10px;cursor:nw-resize; }
+.rg-ne { top:0;    right:0;   width:10px; height:10px;cursor:ne-resize; }
+.rg-sw { bottom:0; left:0;    width:10px; height:10px;cursor:sw-resize; }
+.rg-se { bottom:0; right:0;   width:10px; height:10px;cursor:se-resize; }
+
+/* ════════════════════════════════════════════ CONSOLE PALETTE */
+.bar-3ds   {background:#e8002a;} .bar-ds    {background:#b83228;} .bar-gba  {background:#6b25a0;}
+.bar-gb    {background:#6e9b0a;} .bar-switch{background:#e4000f;} .bar-n64  {background:#109010;}
+.bar-gc    {background:#6a0dad;} .bar-wii   {background:#009ac7;} .bar-nes  {background:#b0102a;}
+.bar-snes  {background:#8b008b;} .bar-genesis{background:#1a6bb5;}.bar-ps1  {background:#003087;}
+.bar-ps2   {background:#00439c;} .bar-ps3   {background:#003087;} .bar-psp  {background:#1f4ca0;}
+.bar-xbox360{background:#52b043;}
+
+.tag-3ds   {background:rgba(232,0,42,.14);   color:#ff4466;}
+.tag-ds    {background:rgba(184,50,40,.14);  color:#ff6b55;}
+.tag-gba   {background:rgba(107,37,160,.14); color:#c080ff;}
+.tag-gb    {background:rgba(110,155,10,.14); color:#9ed020;}
+.tag-switch{background:rgba(228,0,15,.14);   color:#ff4450;}
+.tag-n64   {background:rgba(16,144,16,.14);  color:#4cd94c;}
+.tag-gc    {background:rgba(106,13,173,.14); color:#b060ff;}
+.tag-wii   {background:rgba(0,154,199,.14);  color:#40d0f0;}
+.tag-nes   {background:rgba(176,16,42,.14);  color:#ff5070;}
+.tag-snes  {background:rgba(139,0,139,.14);  color:#e060e0;}
+.tag-genesis{background:rgba(26,107,181,.14);color:#60a8ff;}
+.tag-ps1   {background:rgba(0,48,135,.14);   color:#6090ff;}
+.tag-ps2   {background:rgba(0,67,156,.14);   color:#70a0ff;}
+.tag-ps3   {background:rgba(0,48,135,.14);   color:#6090ff;}
+.tag-psp   {background:rgba(31,76,160,.14);  color:#80a8ff;}
+.tag-xbox360{background:rgba(82,176,67,.14); color:#70dd60;}
+
+.art-3ds   {background:linear-gradient(160deg,#150003,#280008);}
+.art-ds    {background:linear-gradient(160deg,#0c0404,#220c0c);}
+.art-gba   {background:linear-gradient(160deg,#0b0015,#1a0a28);}
+.art-gb    {background:linear-gradient(160deg,#060900,#141c00);}
+.art-switch{background:linear-gradient(160deg,#150000,#260000);}
+.art-n64   {background:linear-gradient(160deg,#001500,#002800);}
+.art-gc    {background:linear-gradient(160deg,#0d001a,#180030);}
+.art-wii   {background:linear-gradient(160deg,#001520,#002838);}
+.art-nes   {background:linear-gradient(160deg,#150003,#250008);}
+.art-snes  {background:linear-gradient(160deg,#100010,#200020);}
+.art-genesis{background:linear-gradient(160deg,#000e1e,#001830);}
+.art-ps1   {background:linear-gradient(160deg,#000818,#000e2a);}
+.art-ps2   {background:linear-gradient(160deg,#000818,#00102e);}
+.art-ps3   {background:linear-gradient(160deg,#000818,#000e2a);}
+.art-psp   {background:linear-gradient(160deg,#000a20,#001030);}
+.art-xbox360{background:linear-gradient(160deg,#041200,#082200);}
+
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--muted2); }
+</style>
+</head>
+<body>
+
+<!-- ══ RESIZE GRIPS ═══════════════════════════ -->
+<!-- These invisible divs sit on each window edge and call the Python resize_grip API -->
+<div class="rg rg-nw" onmousedown="startResize('nw')"></div>
+<div class="rg rg-n"  onmousedown="startResize('n')"></div>
+<div class="rg rg-ne" onmousedown="startResize('ne')"></div>
+<div class="rg rg-w"  onmousedown="startResize('w')"></div>
+<div class="rg rg-e"  onmousedown="startResize('e')"></div>
+<div class="rg rg-sw" onmousedown="startResize('sw')"></div>
+<div class="rg rg-s"  onmousedown="startResize('s')"></div>
+<div class="rg rg-se" onmousedown="startResize('se')"></div>
+
+<!-- ══ TITLEBAR ════════════════════════════════ -->
+<div id="titlebar">
+  <div class="tb-logo">EMU<em>HUB</em></div>
+  <div class="tb-pill"><span class="tb-dot"></span><span id="hdr-count">0 GAMES</span></div>
+  <div class="tb-spacer"></div>
+  <button class="tb-icon-btn" id="btn-settings">⚙ SETTINGS</button>
+  <div class="wc">
+    <button id="wc-minimize" onclick="pyAPI('minimize')"  title="Minimize">&#8722;</button>
+    <button id="wc-maximize" onclick="toggleMaximize()"   title="Maximize">&#9633;</button>
+    <button id="wc-close"    onclick="pyAPI('close_window')" title="Close">&#10005;</button>
+  </div>
+</div>
+
+<!-- ══ LAYOUT ══════════════════════════════════ -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Consoles</div>
+      <button class="f-btn active" data-console="all" onclick="setFilter('all',this)">
+        <span class="cdot" style="background:var(--a1);box-shadow:0 0 5px var(--a1)"></span>
+        All Games <span class="cbadge" id="b-all">0</span>
+      </button>
+      <!-- Nintendo -->
+      <button class="f-btn" data-console="switch" onclick="setFilter('switch',this)">
+        <span class="cdot bar-switch"></span>Nintendo Switch<span class="cbadge" id="b-switch">0</span>
+      </button>
+      <button class="f-btn" data-console="3ds" onclick="setFilter('3ds',this)">
+        <span class="cdot bar-3ds"></span>Nintendo 3DS<span class="cbadge" id="b-3ds">0</span>
+      </button>
+      <button class="f-btn" data-console="ds" onclick="setFilter('ds',this)">
+        <span class="cdot bar-ds"></span>Nintendo DS<span class="cbadge" id="b-ds">0</span>
+      </button>
+      <button class="f-btn" data-console="gba" onclick="setFilter('gba',this)">
+        <span class="cdot bar-gba"></span>Game Boy Advance<span class="cbadge" id="b-gba">0</span>
+      </button>
+      <button class="f-btn" data-console="gb" onclick="setFilter('gb',this)">
+        <span class="cdot bar-gb"></span>Game Boy<span class="cbadge" id="b-gb">0</span>
+      </button>
+      <button class="f-btn" data-console="n64" onclick="setFilter('n64',this)">
+        <span class="cdot bar-n64"></span>Nintendo 64<span class="cbadge" id="b-n64">0</span>
+      </button>
+      <button class="f-btn" data-console="gc" onclick="setFilter('gc',this)">
+        <span class="cdot bar-gc"></span>GameCube<span class="cbadge" id="b-gc">0</span>
+      </button>
+      <button class="f-btn" data-console="wii" onclick="setFilter('wii',this)">
+        <span class="cdot bar-wii"></span>Wii<span class="cbadge" id="b-wii">0</span>
+      </button>
+      <button class="f-btn" data-console="nes" onclick="setFilter('nes',this)">
+        <span class="cdot bar-nes"></span>NES<span class="cbadge" id="b-nes">0</span>
+      </button>
+      <button class="f-btn" data-console="snes" onclick="setFilter('snes',this)">
+        <span class="cdot bar-snes"></span>SNES<span class="cbadge" id="b-snes">0</span>
+      </button>
+      <!-- Sega -->
+      <button class="f-btn" data-console="genesis" onclick="setFilter('genesis',this)">
+        <span class="cdot bar-genesis"></span>Sega Genesis<span class="cbadge" id="b-genesis">0</span>
+      </button>
+      <!-- Sony -->
+      <button class="f-btn" data-console="ps1" onclick="setFilter('ps1',this)">
+        <span class="cdot bar-ps1"></span>PlayStation<span class="cbadge" id="b-ps1">0</span>
+      </button>
+      <button class="f-btn" data-console="ps2" onclick="setFilter('ps2',this)">
+        <span class="cdot bar-ps2"></span>PlayStation 2<span class="cbadge" id="b-ps2">0</span>
+      </button>
+      <button class="f-btn" data-console="ps3" onclick="setFilter('ps3',this)">
+        <span class="cdot bar-ps3"></span>PlayStation 3<span class="cbadge" id="b-ps3">0</span>
+      </button>
+      <button class="f-btn" data-console="psp" onclick="setFilter('psp',this)">
+        <span class="cdot bar-psp"></span>PSP<span class="cbadge" id="b-psp">0</span>
+      </button>
+      <!-- Microsoft -->
+      <button class="f-btn" data-console="xbox360" onclick="setFilter('xbox360',this)">
+        <span class="cdot bar-xbox360"></span>Xbox 360<span class="cbadge" id="b-xbox360">0</span>
+      </button>
+    </div>
+    <div class="sb-spacer"></div>
+    <div class="sb-section">
+      <div class="sb-label">Emulators</div>
+      <div id="sb-emulators"></div>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <div id="toolbar">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search" type="text" placeholder="Search games…" oninput="applyFilters()">
+      </div>
+      <select id="sort" onchange="applyFilters()">
+        <option value="name">Name A–Z</option>
+        <option value="console">Console</option>
+        <option value="newest">Newest First</option>
+      </select>
+      <button id="refresh-btn" onclick="loadLibrary()">↻ REFRESH</button>
+    </div>
+    <div id="section-bar">
+      <h2>Library</h2><div class="sec-line"></div><span id="count-lbl"></span>
+    </div>
+    <div id="grid"></div>
+  </div>
+</div>
+
+<!-- ══ LAUNCH MODAL ════════════════════════════ -->
+<div class="modal-bg" id="launch-bg" onclick="closeLaunchBg(event)">
+  <div class="modal" id="launch-modal">
+    <div id="modal-head">
+      <div id="modal-cover"></div>
+      <div id="modal-meta">
+        <div id="modal-con-tag"></div>
+        <div id="modal-title"></div>
+        <div id="modal-file"></div>
+      </div>
+    </div>
+    <div id="modal-body">
+      <div class="info-row" id="modal-info"></div>
+      <div class="cmd-block" id="modal-cmd"></div>
+      <div class="modal-btns">
+        <button class="btn-primary" id="btn-launch" onclick="launchGame()">&#9654; LAUNCH GAME</button>
+        <button class="btn-ghost" onclick="closeLaunch()">CLOSE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS MODAL ══════════════════════════ -->
+<div class="modal-bg" id="settings-bg" onclick="closeSettingsBg(event)">
+  <div class="modal" id="settings-modal">
+
+    <div class="smodal-header">
+      <h2>SETTINGS</h2>
+      <button class="smodal-close" onclick="closeSettings()">&#10005;</button>
+    </div>
+
+    <div class="stabs">
+      <button class="stab active" data-tab="tab-roms">ROM PATHS</button>
+      <button class="stab"        data-tab="tab-emus">EMULATORS</button>
+      <button class="stab"        data-tab="tab-detect">AUTO-DETECT</button>
+      <button class="stab"        data-tab="tab-other">OTHER</button>
+      <button class="stab"        data-tab="tab-api">API KEY</button>
+    </div>
+
+    <!-- TAB: ROM PATHS -->
+    <div class="spanel active" id="tab-roms">
+      <div class="s-section-head">ROM Directories</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Set the folder where ROMs are stored for each console. EmuHub watches these folders
+        and automatically detects new games when files are added.
+      </p>
+      <div id="rom-path-rows"></div>
+    </div>
+
+    <!-- TAB: EMULATORS -->
+    <div class="spanel" id="tab-emus">
+      <div class="s-section-head">Emulator Executables</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Point each console to the correct emulator <code style="color:var(--a1)">.exe</code>.
+        Use the Auto-Detect tab to scan automatically.
+      </p>
+      <div id="emu-rows"></div>
+    </div>
+
+    <!-- TAB: AUTO-DETECT -->
+    <div class="spanel" id="tab-detect">
+      <div class="s-section-head">Emulator Auto-Detection</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Scans your system for known emulators — the EmuHub folder, its parent directory,
+        Program Files, and AppData. Click <strong style="color:var(--a1)">Apply</strong> on any result to use it.
+      </p>
+      <button class="btn-primary" id="btn-scan-emus" onclick="runDetect()" style="margin-bottom:18px;max-width:200px;padding:10px;">
+        &#128269; SCAN NOW
+      </button>
+      <div id="detect-results"></div>
+    </div>
+
+    <!-- TAB: OTHER EMULATORS -->
+    <div class="spanel" id="tab-other">
+      <div class="s-section-head">Other / Custom Emulators</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Add any emulator that isn't in EmuHub's built-in list. Give it a name,
+        point to its <code style="color:var(--a1)">.exe</code>, set its ROM folder,
+        and specify which file extensions it accepts (comma-separated, e.g.
+        <code style="color:var(--a1)">.rom, .bin, .img</code>).
+      </p>
+      <button class="btn-primary" onclick="addOtherEmulator()"
+              style="max-width:220px;padding:10px;margin-bottom:18px;">
+        + ADD CUSTOM EMULATOR
+      </button>
+      <div id="other-emu-rows"></div>
+    </div>
+
+    <!-- TAB: API KEY -->
+    <div class="spanel" id="tab-api">
+      <div class="s-section-head">SteamGridDB API Key</div>
+      <div class="apikey-section">
+        <div class="apikey-status">
+          <div class="key-indicator" id="key-indicator"></div>
+          <span class="apikey-status-text" id="key-status-text"></span>
+        </div>
+        <div class="key-input-row">
+          <input class="key-input" type="password" id="key-input" placeholder="Paste your API key here…" autocomplete="off" spellcheck="false">
+          <button class="btn-save-key" onclick="saveApiKey()">SAVE</button>
+          <button class="btn-del-key" id="btn-del-key" onclick="deleteApiKey()">REMOVE</button>
+        </div>
+        <div class="key-hint">
+          Get a free key at <a href="#" onclick="return false;" style="pointer-events:none">steamgriddb.com</a> →
+          Profile → Preferences → API → Generate API Key.<br>
+          Your key is encrypted with Windows DPAPI and never stored in plain text.
+          It is tied to your Windows user account and cannot be read by other users.
+        </div>
+        <div id="key-decrypt-hint" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;font-size:11px;color:var(--err);line-height:1.6;">
+          ⚠ Your previously saved key could not be decrypted. This happens when EmuHub
+          is run under a different Windows user account than the one that saved the key,
+          or in a restricted/sandboxed environment. Please re-enter your key above.
+        </div>
+      </div>
+    </div>
+
+    <div class="smodal-footer">
+      <button class="btn-ghost" onclick="closeSettings()">CANCEL</button>
+      <button class="btn-primary" style="max-width:160px;padding:10px" onclick="saveAllSettings()">SAVE CHANGES</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ════════════════════════════════════ -->
+<div id="toast"><div class="tt" id="t-title"></div><div id="t-msg"></div></div>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════ PYTHON BRIDGE
+async function pyAPI(method, ...args) {
+  if (window.pywebview?.api) return window.pywebview.api[method](...args);
+  if (method === 'scan_roms')    return [];
+  if (method === 'get_settings') return { rom_paths:{}, emulators:{}, has_api_key:false };
+  if (method === 'launch_game')  return { ok:false, error:'Not in EmuHub app' };
+  return null;
+}
+
+window.__onRomsChanged = () => { toast('LIBRARY UPDATED','New ROM detected — refreshing…'); loadLibrary(); };
+
+// ════════════════════════════════════════════ STATE
+let allROMs   = [];
+let artCache  = (() => { try { return JSON.parse(localStorage.getItem('art_cache')||'{}'); } catch { return {}; } })();
+let curFilter = 'all';
+let curROM    = null;
+let toastTmr;
+let settingsDraft = {};   // in-flight edits (not saved until user hits Save)
+let artHydrationActive  = false;  // set false when a bad key is detected to stop fetching
+let artFetchErrorShown  = false;  // show network errors only once per session
+let _isMaximized        = false;  // mirror Python's _is_maximized for button icon sync
+
+const CON_LABEL = {
+  switch:'SWITCH', '3ds':'3DS', ds:'DS', gba:'GBA', gb:'GB',
+  n64:'N64', gc:'GCN', wii:'WII', nes:'NES', snes:'SNES',
+  genesis:'GEN', ps1:'PS1', ps2:'PS2', ps3:'PS3', psp:'PSP', xbox360:'X360'
+};
+const CON_NAME = {
+  switch:'Nintendo Switch', '3ds':'Nintendo 3DS', ds:'Nintendo DS',
+  gba:'Game Boy Advance', gb:'Game Boy', n64:'Nintendo 64',
+  gc:'GameCube', wii:'Wii', nes:'NES', snes:'SNES',
+  genesis:'Sega Genesis', ps1:'PlayStation', ps2:'PlayStation 2',
+  ps3:'PlayStation 3', psp:'PSP', xbox360:'Xbox 360'
+};
+const CON_ICON = {
+  switch:'🎮', '3ds':'🎮', ds:'🎮', gba:'🕹️', gb:'🕹️',
+  n64:'🕹️', gc:'💿', wii:'🕹️', nes:'🎮', snes:'🎮',
+  genesis:'🎮', ps1:'💿', ps2:'💿', ps3:'💿', psp:'🎮', xbox360:'🎮'
+};
+const CONSOLES = [
+  'switch','3ds','ds','gba','gb',
+  'n64','gc','wii','nes','snes',
+  'genesis','ps1','ps2','ps3','psp','xbox360'
+];
+
+// ════════════════════════════════════════════ WINDOW RESIZE GRIPS
+function startResize(edge) {
+  // Tell Python to initiate a Win32 resize drag for this edge
+  // We don't await — it's fire-and-forget; the OS takes over the mouse loop
+  if (window.pywebview?.api) {
+    window.pywebview.api.resize_grip(edge);
+  }
+}
+
+// Keep the maximize button icon in sync with actual window state
+function syncMaximizeBtn(isMax) {
+  _isMaximized = isMax;
+  const btn = document.getElementById('wc-maximize');
+  if (!btn) return;
+  // ❐ = restore (two overlapping squares), □ = maximize (single square)
+  btn.innerHTML    = isMax ? '&#10697;' : '&#9633;';
+  btn.title        = isMax ? 'Restore'  : 'Maximize';
+  // Hide resize grips when maximized — window has no edges to drag
+  document.querySelectorAll('.rg').forEach(el => {
+    el.style.display = isMax ? 'none' : '';
+  });
+}
+
+async function toggleMaximize() {
+  await pyAPI('toggle_maximize');
+  syncMaximizeBtn(!_isMaximized);
+}
+
+// Double-click titlebar to maximize / restore (standard Windows behaviour)
+document.getElementById('titlebar').addEventListener('dblclick', e => {
+  // Ignore double-clicks on buttons inside the titlebar
+  if (e.target.closest('button')) return;
+  toggleMaximize();
+});
+
+// ════════════════════════════════════════════ BOX ART (via Python — no CORS)
+async function fetchArt(title) {
+  if (artCache[title] !== undefined) return artCache[title];
+  try {
+    // Backend returns {url, error, bad_key} — never a bare value
+    const res = await pyAPI('fetch_art', title);
+    if (res?.bad_key) {
+      // Invalid / expired key — halt all art fetching and tell the user
+      artHydrationActive = false;
+      toast('INVALID API KEY', 'SteamGridDB rejected your key (401). Update it in ⚙ Settings → API Key.', true);
+      artCache[title] = null;
+      return null;
+    }
+    if (res?.error && !artFetchErrorShown) {
+      // Show network errors once per session so they don't spam
+      artFetchErrorShown = true;
+      toast('ART FETCH ERROR', res.error, true);
+    }
+    const url = res?.url || null;
+    artCache[title] = url;
+    persistCache();
+    return url;
+  } catch { artCache[title] = null; return null; }
+}
+
+function persistCache() {
+  const slim = {};
+  for (const [k,v] of Object.entries(artCache)) if (v) slim[k] = v;
+  try { localStorage.setItem('art_cache', JSON.stringify(slim)); } catch {}
+}
+
+async function hydrateArt(roms) {
+  const hasKey = await pyAPI('has_api_key');
+  if (!hasKey) {
+    // No key — clear every spinner so cards don't hang indefinitely
+    roms.forEach(rom => applyArt(rom.id, null));
+    return;
+  }
+  artHydrationActive  = true;
+  artFetchErrorShown  = false;
+  for (const rom of roms) {
+    if (!artHydrationActive) break;   // bad-key signal stops the loop
+    if (artCache[rom.title] !== undefined) { applyArt(rom.id, artCache[rom.title]); continue; }
+    const url = await fetchArt(rom.title);
+    applyArt(rom.id, url);
+    await delay(260);
+  }
+}
+
+function applyArt(id, url) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) return;
+  const ph   = card.querySelector('.cover-ph');
+  const spin = card.querySelector('.cover-spin');
+  if (spin) spin.remove();
+  if (url) {
+    const cover = card.querySelector('.cover');
+    const img   = document.createElement('img');
+    img.src = url; img.alt = '';
+    img.onerror = () => { img.remove(); if (ph) ph.style.display = ''; };
+    cover.insertBefore(img, cover.firstChild);
+    if (ph) ph.style.display = 'none';
+  }
+}
+
+// ════════════════════════════════════════════ LIBRARY
+let _cachedHasKey       = false;
+let _configuredConsoles = new Set();
+let _otherEmuMeta       = [];   // [{console_key, name}] for sidebar dynamic entries
+
+async function loadLibrary() {
+  _cachedHasKey = await pyAPI('has_api_key');
+
+  const s = await pyAPI('get_settings');
+
+  // A console appears in the sidebar only when its emulator exe is configured —
+  // not merely when a ROM folder is set. This matches the requirement that the
+  // console becomes active once the user points to an actual emulator.
+  _configuredConsoles = new Set(
+    Object.entries(s.emulators || {})
+      .filter(([, e]) => e.exe && e.exe.trim() !== '')
+      .map(([c]) => c)
+  );
+
+  // Other/custom emulators: show when both exe AND rom_path are set
+  _otherEmuMeta = [];
+  for (const e of (s.other_emulators || [])) {
+    if (e.exe && e.exe.trim() && e.rom_path && e.rom_path.trim()) {
+      _configuredConsoles.add(e.console_key);
+      _otherEmuMeta.push({ console_key: e.console_key, name: e.name || 'Custom' });
+    }
+  }
+
+  allROMs = await pyAPI('scan_roms') || [];
+  updateSidebarFilters();
+  applyFilters();
+  updateBadges();
+  updateSidebarEmulators();
+  toast('LIBRARY LOADED', `${allROMs.length} game${allROMs.length===1?'':'s'} found`);
+  hydrateArt(allROMs);
+}
+
+function updateSidebarFilters() {
+  // Show/hide known console buttons
+  CONSOLES.forEach(c => {
+    const btn = document.querySelector(`.f-btn[data-console="${c}"]`);
+    if (!btn) return;
+    const visible = _configuredConsoles.has(c);
+    btn.style.display = visible ? '' : 'none';
+    if (!visible && curFilter === c) {
+      curFilter = 'all';
+      document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.f-btn[data-console="all"]').classList.add('active');
+    }
+  });
+
+  // Dynamically add/update/remove "Other" sidebar buttons
+  const sbSection = document.querySelector('.sb-section');   // first section = consoles
+  // Remove any previously rendered other buttons
+  document.querySelectorAll('.f-btn-other').forEach(el => el.remove());
+  document.querySelectorAll('.sb-other-sep').forEach(el => el.remove());
+
+  if (_otherEmuMeta.length) {
+    // Insert a separator before other entries
+    const sep = document.createElement('div');
+    sep.className = 'sb-other-sep';
+    sep.style.cssText = 'height:1px;background:var(--border);margin:6px 0;';
+    sbSection.appendChild(sep);
+
+    _otherEmuMeta.forEach(({ console_key, name }) => {
+      const btn = document.createElement('button');
+      btn.className      = 'f-btn f-btn-other';
+      btn.dataset.console = console_key;
+      btn.onclick        = () => setFilter(console_key, btn);
+      btn.innerHTML      = `
+        <span class="cdot" style="background:var(--a3);box-shadow:0 0 5px var(--a3)"></span>
+        ${esc(name)}<span class="cbadge" id="b-${console_key}">0</span>`;
+      sbSection.appendChild(btn);
+
+      if (!_configuredConsoles.has(console_key) && curFilter === console_key) {
+        curFilter = 'all';
+        document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.f-btn[data-console="all"]').classList.add('active');
+      }
+    });
+  }
+}
+
+function applyFilters() {
+  const q    = document.getElementById('search').value.toLowerCase().trim();
+  const sort = document.getElementById('sort').value;
+  let list = allROMs.filter(r =>
+    (curFilter==='all' || r.console===curFilter) &&
+    (!q || r.title.toLowerCase().includes(q) || r.console.includes(q))
+  );
+  if (sort==='name')    list.sort((a,b)=>a.title.localeCompare(b.title));
+  if (sort==='console') list.sort((a,b)=>a.console.localeCompare(b.console)||a.title.localeCompare(b.title));
+  if (sort==='newest')  list.sort((a,b)=>(b.added||'').localeCompare(a.added||''));
+  renderGrid(list, _cachedHasKey);
+  document.getElementById('count-lbl').textContent = `${list.length} OF ${allROMs.length}`;
+}
+
+function updateBadges() {
+  const totals = { all: allROMs.length };
+  for (const r of allROMs) totals[r.console] = (totals[r.console]||0)+1;
+  // Known consoles
+  ['all', ...CONSOLES].forEach(c => {
+    const el = document.getElementById(`b-${c}`);
+    if (el) el.textContent = totals[c]||0;
+  });
+  // Dynamic "other" consoles
+  _otherEmuMeta.forEach(({ console_key }) => {
+    const el = document.getElementById(`b-${console_key}`);
+    if (el) el.textContent = totals[console_key]||0;
+  });
+  document.getElementById('hdr-count').textContent = `${allROMs.length} GAMES`;
+}
+
+async function updateSidebarEmulators() {
+  const s    = await pyAPI('get_settings');
+  const emus = s.emulators || {};
+  const el   = document.getElementById('sb-emulators');
+  // Deduplicate known emulators by exe path
+  const seen = new Set();
+  const rows = [];
+  for (const [con, e] of Object.entries(emus)) {
+    const key = (e.exe||'').toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const consoles = Object.entries(emus).filter(([,v])=>(v.exe||'').toLowerCase()===key).map(([c])=>c);
+    rows.push({ name: e.name||'Unknown', exists: e.exists, consoles, isOther: false });
+  }
+  // Append custom "other" emulators
+  for (const e of (s.other_emulators || [])) {
+    if (e.exe) rows.push({ name: e.name||'Custom', exists: e.exe_exists, consoles: [], isOther: true });
+  }
+  el.innerHTML = rows.map(r => `
+    <div class="emu-row">
+      <div class="emu-name">${esc(r.name)}</div>
+      <div class="${r.exists ? 'emu-ver' : 'emu-warn'}">
+        ${r.exists
+          ? (r.isOther ? 'CUSTOM' : r.consoles.map(c=>CON_LABEL[c]||c).join(' / '))
+          : '⚠ Not found'}
+      </div>
+    </div>`).join('');
+}
+
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+// ════════════════════════════════════════════ GRID
+function renderGrid(list, hasApiKey) {
+  const grid = document.getElementById('grid');
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty"><span class="e-icon">🎮</span><p>No games found</p><small>Open ⚙ Settings to configure your ROM folders</small></div>`;
+    return;
+  }
+  grid.innerHTML = list.map((r,i) => {
+    // For known consoles use the pre-defined CSS class; for custom "other" entries
+    // fall back to a generic purple style so the card always renders cleanly.
+    const isOther   = r.isOther || r.console.startsWith('other_');
+    const barClass  = isOther ? '' : `bar-${r.console}`;
+    const tagClass  = isOther ? '' : `tag-${r.console}`;
+    const artClass  = isOther ? '' : `art-${r.console}`;
+    const barStyle  = isOther ? 'style="background:var(--a3)"' : '';
+    const tagStyle  = isOther ? 'style="background:rgba(124,58,237,.15);color:#c084fc"' : '';
+    const artStyle  = isOther ? 'style="background:linear-gradient(160deg,#0d001a,#1a0b30)"' : '';
+
+    const cl     = CON_LABEL[r.console] || (isOther
+      ? (_otherEmuMeta.find(m=>m.console_key===r.console)?.name || 'OTHER').toUpperCase()
+      : r.console.toUpperCase());
+    const art    = artCache[r.title];
+    const delay  = Math.min(i*38,480);
+
+    let coverInner;
+    if (art) {
+      coverInner = `<img src="${esc(art)}" alt="" loading="lazy">`;
+    } else if (hasApiKey) {
+      coverInner = `
+        <div class="cover-spin"><div class="spin"></div></div>
+        <div class="cover-ph"><span class="ph-icon">${CON_ICON[r.console]||'🎮'}</span><span class="ph-name">${esc(r.title)}</span></div>`;
+    } else {
+      coverInner = `
+        <div class="cover-ph"><span class="ph-icon">${CON_ICON[r.console]||'🎮'}</span><span class="ph-name">${esc(r.title)}</span></div>`;
+    }
+    return `
+      <div class="card" data-id="${r.id}" onclick="openLaunch('${r.id}')" style="animation-delay:${delay}ms">
+        <div class="card-bar ${barClass}" ${barStyle}></div>
+        <div class="cover ${artClass}" ${artStyle}>${coverInner}
+          <div class="play-ov"><div class="play-circle">&#9654;</div></div>
+        </div>
+        <div class="card-info">
+          <div class="card-title">${esc(r.title)}</div>
+          <span class="card-tag ${tagClass}" ${tagStyle}>${cl}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════ LAUNCH MODAL
+function openLaunch(id) {
+  const rom = allROMs.find(r=>r.id===id);
+  if (!rom) return;
+  curROM = rom;
+  const cl  = CON_LABEL[rom.console]||rom.console.toUpperCase();
+  const art = artCache[rom.title];
+  const cw  = document.getElementById('modal-cover');
+  cw.innerHTML = art ? `<img src="${esc(art)}" alt="">` : `<div class="modal-ph">${CON_ICON[rom.console]||'🎮'}</div>`;
+  document.getElementById('modal-con-tag').textContent = cl;
+  document.getElementById('modal-con-tag').className   = `tag-${rom.console}`;
+  document.getElementById('modal-title').textContent   = rom.title;
+  document.getElementById('modal-file').textContent    = rom.filename;
+  document.getElementById('modal-info').innerHTML = `
+    <div class="ii"><label>CONSOLE</label><div class="v">${cl}</div></div>
+    <div class="ii"><label>ADDED</label><div class="v">${rom.added||'—'}</div></div>
+    <div class="ii" style="grid-column:1/-1"><label>PATH</label><div class="v">${esc(rom.romPath)}</div></div>`;
+  document.getElementById('modal-cmd').innerHTML = `<span class="cl">ROM PATH</span>${esc(rom.romPath)}`;
+  const lb = document.getElementById('btn-launch');
+  lb.disabled = false; lb.innerHTML = '&#9654; LAUNCH GAME';
+  document.getElementById('launch-bg').classList.add('open');
+}
+function closeLaunch()           { document.getElementById('launch-bg').classList.remove('open'); curROM=null; }
+function closeLaunchBg(e)        { if (e.target===document.getElementById('launch-bg')) closeLaunch(); }
+
+async function launchGame() {
+  if (!curROM) return;
+  const btn = document.getElementById('btn-launch');
+  btn.disabled=true; btn.textContent='LAUNCHING…';
+  const res = await pyAPI('launch_game', curROM.console, curROM.romPath);
+  if (res?.ok) { toast('LAUNCHED', curROM.title); closeLaunch(); }
+  else { btn.disabled=false; btn.innerHTML='&#9654; LAUNCH GAME'; toast('ERROR', res?.error||'Unknown error', true); }
+}
+
+// ════════════════════════════════════════════ SETTINGS MODAL
+let settingsData = null;
+
+async function openSettings() {
+  settingsData = await pyAPI('get_settings');
+  settingsDraft = JSON.parse(JSON.stringify(settingsData));
+  renderRomPaths();
+  renderEmuRows();
+  renderOtherEmus();
+  renderApiKeyTab();
+  document.getElementById('detect-results').innerHTML = '';
+  document.getElementById('settings-bg').classList.add('open');
+  switchTab('tab-roms');
+}
+function closeSettings()       { document.getElementById('settings-bg').classList.remove('open'); }
+function closeSettingsBg(e)    { if (e.target===document.getElementById('settings-bg')) closeSettings(); }
+
+document.querySelectorAll('.stab').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(id) {
+  document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('active', b.dataset.tab===id));
+  document.querySelectorAll('.spanel').forEach(p=>p.classList.toggle('active', p.id===id));
+}
+
+// ── ROM Paths Tab ───────────────────────────
+function renderRomPaths() {
+  const rp  = settingsDraft.rom_paths || {};
+  const div = document.getElementById('rom-path-rows');
+  div.innerHTML = CONSOLES.map(c => {
+    const raw    = rp[c] || {};
+    const info   = typeof raw === 'object' ? raw : { path: raw, exists: false };
+    const hasVal = !!(info.path||'').trim();
+    const badge  = hasVal
+      ? (info.exists ? '<span class="badge-ok">✓ FOUND</span>' : '<span class="badge-err">✗ MISSING</span>')
+      : '<span class="badge-warn">NOT SET</span>';
+    return `
+      <div class="s-row">
+        <label>${CON_NAME[c]||c.toUpperCase()} ${badge}</label>
+        <div class="s-path-row">
+          <div class="s-input-wrap">
+            <input class="s-path-input ${info.exists?'valid':hasVal?'invalid':''}"
+                   id="rp-${c}" type="text" value="${esc(info.path||'')}"
+                   placeholder="Browse or type the full path to your ROM folder"
+                   oninput="onRomPathInput('${c}',this.value)">
+            <button class="s-clear-btn ${hasVal?'visible':''}"
+                    id="rp-clear-${c}"
+                    title="Clear path"
+                    onclick="clearRomPath('${c}')">&#10005;</button>
+          </div>
+          <button class="s-browse-btn" onclick="browseRomFolder('${c}')">BROWSE…</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function clearRomPath(c) {
+  // Clear the input, hide the X, update the draft, reset validation state
+  const inp  = document.getElementById(`rp-${c}`);
+  const xBtn = document.getElementById(`rp-clear-${c}`);
+  if (!inp) return;
+  inp.value = '';
+  inp.classList.remove('valid', 'invalid');
+  if (xBtn) xBtn.classList.remove('visible');
+  if (!settingsDraft.rom_paths) settingsDraft.rom_paths = {};
+  settingsDraft.rom_paths[c] = '';
+  // Re-render just the label badge for this row to show NOT SET
+  renderRomPaths();
+}
+
+async function onRomPathInput(c, val) {
+  if (!settingsDraft.rom_paths) settingsDraft.rom_paths = {};
+  settingsDraft.rom_paths[c] = val;
+  // Show/hide the clear button based on whether there's content
+  const xBtn = document.getElementById(`rp-clear-${c}`);
+  if (xBtn) xBtn.classList.toggle('visible', val.trim() !== '');
+  // Live validate — green border if path exists, red if typed but not found
+  const ok  = val.trim() ? await pyAPI('validate_path', val.trim()) : false;
+  const inp = document.getElementById(`rp-${c}`);
+  if (inp) {
+    inp.classList.toggle('valid',   !!ok);
+    inp.classList.toggle('invalid', !!val.trim() && !ok);
+  }
+}
+
+async function browseRomFolder(c) {
+  const raw     = (settingsDraft.rom_paths||{})[c] || '';
+  const current = typeof raw === 'object' ? (raw.path||'') : String(raw);
+  const picked  = await pyAPI('browse_folder', `Select ROM folder for ${CON_NAME[c]}`, current);
+  if (!picked) return;
+  document.getElementById(`rp-${c}`).value = picked;
+  onRomPathInput(c, picked);
+}
+
+// ── Emulators Tab ───────────────────────────
+function renderEmuRows() {
+  const emus = settingsDraft.emulators || {};
+  const div  = document.getElementById('emu-rows');
+  div.innerHTML = CONSOLES.map(c => {
+    const e = emus[c] || {};
+    const badge = e.exe
+      ? (e.exists ? '<span class="badge-ok">✓ FOUND</span>' : '<span class="badge-err">✗ MISSING</span>')
+      : '<span class="badge-warn">NOT SET</span>';
+    return `
+      <div class="emu-card">
+        <div class="emu-card-header">
+          <div class="emu-card-name">${esc(e.name||CON_NAME[c])}</div>
+          <div class="emu-card-consoles">
+            <span class="card-tag tag-${c}">${CON_LABEL[c]}</span>
+          </div>
+        </div>
+        <div class="s-row">
+          <label>EXECUTABLE ${badge}</label>
+          <div class="s-path-row">
+            <input class="s-path-input ${e.exists?'valid':e.exe?'invalid':''}"
+                   id="ep-${c}" type="text" value="${esc(e.exe||'')}"
+                   placeholder="Path to emulator .exe"
+                   oninput="onEmuPathInput('${c}',this.value)">
+            <button class="s-browse-btn" onclick="browseEmuExe('${c}')">BROWSE…</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function onEmuPathInput(c, val) {
+  if (!settingsDraft.emulators)    settingsDraft.emulators = {};
+  if (!settingsDraft.emulators[c]) settingsDraft.emulators[c] = {};
+  settingsDraft.emulators[c].exe = val;
+  const ok  = val ? await pyAPI('validate_path', val) : false;
+  const inp = document.getElementById(`ep-${c}`);
+  inp.classList.toggle('valid',   !!ok);
+  inp.classList.toggle('invalid', !!val && !ok);
+}
+
+async function browseEmuExe(c) {
+  const current = (settingsDraft.emulators||{})[c]?.exe || '';
+  const picked  = await pyAPI('browse_exe', current);
+  if (!picked) return;
+  document.getElementById(`ep-${c}`).value = picked;
+  onEmuPathInput(c, picked);
+}
+
+// ── Other Emulators Tab ─────────────────────
+function renderOtherEmus() {
+  const others = settingsDraft.other_emulators || [];
+  const div    = document.getElementById('other-emu-rows');
+  if (!others.length) {
+    div.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0;">
+      No custom emulators added yet. Click <strong style="color:var(--a1)">+ ADD CUSTOM EMULATOR</strong> above.
+    </div>`;
+    return;
+  }
+  div.innerHTML = others.map((e, i) => {
+    const exeBadge = e.exe
+      ? (e.exe_exists ? '<span class="badge-ok">✓ FOUND</span>' : '<span class="badge-err">✗ MISSING</span>')
+      : '<span class="badge-warn">NOT SET</span>';
+    const romBadge = e.rom_path
+      ? (e.rom_path_exists ? '<span class="badge-ok">✓ FOUND</span>' : '<span class="badge-err">✗ MISSING</span>')
+      : '<span class="badge-warn">NOT SET</span>';
+    return `
+      <div class="other-card" id="oc-${e.id}">
+        <div class="other-card-header">
+          <span class="other-card-title">CUSTOM EMULATOR</span>
+          <button class="btn-remove-other" onclick="removeOtherEmulator('${e.id}')">✕ REMOVE</button>
+        </div>
+
+        <div class="s-row">
+          <label>DISPLAY NAME</label>
+          <div class="s-path-row">
+            <input class="s-path-input" style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:0"
+                   id="oe-name-${e.id}" type="text" value="${esc(e.name||'')}"
+                   placeholder="e.g. Cemu, MAME, ScummVM…"
+                   oninput="onOtherFieldInput('${e.id}','name',this.value)">
+          </div>
+        </div>
+
+        <div class="s-row">
+          <label>EXECUTABLE ${exeBadge}</label>
+          <div class="s-path-row">
+            <div class="s-input-wrap">
+              <input class="s-path-input ${e.exe_exists?'valid':e.exe?'invalid':''}"
+                     id="oe-exe-${e.id}" type="text" value="${esc(e.exe||'')}"
+                     placeholder="Path to emulator .exe"
+                     oninput="onOtherPathInput('${e.id}','exe',this.value)">
+            </div>
+            <button class="s-browse-btn" onclick="browseOtherExe('${e.id}')">BROWSE…</button>
+          </div>
+        </div>
+
+        <div class="s-row">
+          <label>ROM FOLDER ${romBadge}</label>
+          <div class="s-path-row">
+            <div class="s-input-wrap">
+              <input class="s-path-input ${e.rom_path_exists?'valid':e.rom_path?'invalid':''}"
+                     id="oe-rom-${e.id}" type="text" value="${esc(e.rom_path||'')}"
+                     placeholder="Folder containing ROMs for this emulator"
+                     oninput="onOtherPathInput('${e.id}','rom_path',this.value)">
+            </div>
+            <button class="s-browse-btn" onclick="browseOtherRom('${e.id}')">BROWSE…</button>
+          </div>
+        </div>
+
+        <div class="s-row">
+          <label>LAUNCH FLAG <span style="color:var(--muted2);font-size:8px;letter-spacing:1px">(OPTIONAL)</span></label>
+          <div class="s-path-row">
+            <input class="s-path-input" style="max-width:160px"
+                   id="oe-flag-${e.id}" type="text" value="${esc(e.args_flag||'')}"
+                   placeholder="-e, -p, --, etc."
+                   oninput="onOtherFieldInput('${e.id}','args_flag',this.value)">
+          </div>
+        </div>
+
+        <div class="s-row">
+          <label>SUPPORTED EXTENSIONS</label>
+          <div class="s-path-row">
+            <input class="s-path-input" style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:0"
+                   id="oe-ext-${e.id}" type="text" value="${esc(e.extensions||'')}"
+                   placeholder=".rom, .bin, .img, .iso …"
+                   oninput="onOtherFieldInput('${e.id}','extensions',this.value)">
+          </div>
+          <div class="other-ext-hint">
+            Comma-separated file extensions this emulator accepts.
+            EmuHub will reject any file with a different extension at launch time.
+            Leave blank to accept any file in the ROM folder.
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _getOtherIdx(id) {
+  return (settingsDraft.other_emulators||[]).findIndex(e => e.id === id);
+}
+
+function onOtherFieldInput(id, field, val) {
+  const idx = _getOtherIdx(id);
+  if (idx < 0) return;
+  settingsDraft.other_emulators[idx][field] = val;
+}
+
+async function onOtherPathInput(id, field, val) {
+  onOtherFieldInput(id, field, val);
+  const ok  = val ? await pyAPI('validate_path', val) : false;
+  const inp = document.getElementById(`oe-${field === 'rom_path' ? 'rom' : 'exe'}-${id}`);
+  if (inp) {
+    inp.classList.toggle('valid',   !!ok);
+    inp.classList.toggle('invalid', !!val && !ok);
+  }
+}
+
+async function browseOtherExe(id) {
+  const idx = _getOtherIdx(id);
+  const cur = idx >= 0 ? (settingsDraft.other_emulators[idx].exe||'') : '';
+  const picked = await pyAPI('browse_exe', cur);
+  if (!picked) return;
+  document.getElementById(`oe-exe-${id}`).value = picked;
+  onOtherPathInput(id, 'exe', picked);
+}
+
+async function browseOtherRom(id) {
+  const idx = _getOtherIdx(id);
+  const cur = idx >= 0 ? (settingsDraft.other_emulators[idx].rom_path||'') : '';
+  const picked = await pyAPI('browse_folder', 'Select ROM folder', cur);
+  if (!picked) return;
+  document.getElementById(`oe-rom-${id}`).value = picked;
+  onOtherPathInput(id, 'rom_path', picked);
+}
+
+async function addOtherEmulator() {
+  const res = await pyAPI('add_other_emulator');
+  if (!res?.ok) { toast('ERROR', res?.error||'Failed to add emulator', true); return; }
+  // Re-fetch settings so the draft includes the new entry with its server-generated id
+  settingsData  = await pyAPI('get_settings');
+  settingsDraft = JSON.parse(JSON.stringify(settingsData));
+  renderOtherEmus();
+  switchTab('tab-other');
+}
+
+async function removeOtherEmulator(id) {
+  const res = await pyAPI('remove_other_emulator', id);
+  if (!res?.ok) { toast('ERROR', res?.error||'Failed to remove', true); return; }
+  settingsData  = await pyAPI('get_settings');
+  settingsDraft = JSON.parse(JSON.stringify(settingsData));
+  renderOtherEmus();
+  toast('REMOVED', 'Custom emulator removed');
+}
+
+// ── Auto-Detect Tab ─────────────────────────
+async function runDetect() {
+  const div = document.getElementById('detect-results');
+  const btn = document.getElementById('btn-scan-emus');
+  btn.disabled = true;
+  div.innerHTML = `<div class="scan-indicator"><div class="spin" style="width:14px;height:14px;border-width:2px;margin-right:4px"></div>SCANNING SYSTEM…</div>`;
+  const res = await pyAPI('detect_emulators');
+  btn.disabled = false;
+  const found = res?.found || [];
+  if (!found.length) {
+    div.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0;">No additional emulators found. Check manually in the Emulators tab.</div>`;
+    return;
+  }
+  div.innerHTML = found.map((e,i) => {
+    const tags = e.consoles.map(c=>`<span class="card-tag tag-${c}">${CON_LABEL[c]||c}</span>`).join('');
+    return `
+      <div class="detected-card" id="dc-${i}">
+        <div class="detected-card-top">
+          <div>
+            <div class="detected-name">${esc(e.name)}</div>
+            <div class="detected-path">${esc(e.exe)}</div>
+          </div>
+          <button class="btn-apply ${e.configured?'applied':''}" id="dca-${i}"
+                  onclick="applyDetected(${i},'${esc(e.exe)}',${JSON.stringify(e.consoles)},'${esc(e.name)}','${esc(e.args_flag||'')}')">
+            ${e.configured ? '✓ IN USE' : 'APPLY'}
+          </button>
+        </div>
+        <div class="detected-tags">${tags}</div>
+      </div>`;
+  }).join('');
+}
+
+async function applyDetected(i, exe, consoles, name, argsFlag) {
+  const res = await pyAPI('apply_detected_emulator', exe, consoles, name, argsFlag);
+  if (res?.ok) {
+    const btn = document.getElementById(`dca-${i}`);
+    if (btn) { btn.textContent='✓ IN USE'; btn.classList.add('applied'); }
+    // refresh emulator tab inputs
+    settingsData = await pyAPI('get_settings');
+    settingsDraft = JSON.parse(JSON.stringify(settingsData));
+    renderEmuRows();
+    updateSidebarEmulators();
+    toast('EMULATOR APPLIED', `${name} configured for ${consoles.join(', ')}`);
+  } else {
+    toast('ERROR', res?.error||'Failed to apply', true);
+  }
+}
+
+// ── API Key Tab ─────────────────────────────
+async function renderApiKeyTab() {
+  const s      = await pyAPI('get_settings');
+  const hasKey = s.has_api_key;
+  const failed = s.key_decrypt_failed;
+
+  let statusText, indicatorClass;
+  if (hasKey) {
+    indicatorClass = 'set';
+    statusText     = 'API KEY ACTIVE';
+  } else if (failed) {
+    indicatorClass = 'unset';
+    statusText     = 'KEY DECRYPTION FAILED — please re-enter your key';
+  } else {
+    indicatorClass = 'unset';
+    statusText     = 'NO KEY SET';
+  }
+
+  document.getElementById('key-indicator').className    = `key-indicator ${indicatorClass}`;
+  document.getElementById('key-status-text').textContent = statusText;
+  document.getElementById('key-input').value             = '';
+  document.getElementById('btn-del-key').style.display   = (hasKey || failed) ? '' : 'none';
+
+  // Show a hint if decryption failed so the user understands what happened
+  const hintEl = document.getElementById('key-decrypt-hint');
+  if (hintEl) hintEl.style.display = failed ? 'block' : 'none';
+}
+
+async function saveApiKey() {
+  const val = document.getElementById('key-input').value.trim();
+  if (!val) { toast('ERROR', 'Please enter an API key', true); return; }
+  const res = await pyAPI('save_api_key', val);
+  if (res?.ok) {
+    document.getElementById('key-input').value = '';
+    artCache = {}; localStorage.removeItem('art_cache');
+    artFetchErrorShown = false;
+    _cachedHasKey = true;
+    await renderApiKeyTab();
+    toast('API KEY SAVED', 'Encrypted with Windows DPAPI. Box art will load automatically.');
+    hydrateArt(allROMs);
+  } else {
+    toast('ERROR', res?.error||'Failed to save key', true);
+  }
+}
+
+async function deleteApiKey() {
+  const res = await pyAPI('delete_api_key');
+  if (res?.ok) { await renderApiKeyTab(); toast('KEY REMOVED', 'API key deleted from secure storage'); }
+  else toast('ERROR', res?.error||'Failed', true);
+}
+
+// ── Save All ────────────────────────────────
+async function saveAllSettings() {
+  // Build a clean payload with only string values — no {path,exists} dicts,
+  // no ephemeral 'exists' keys — regardless of what the draft contains.
+  const romPaths = {};
+  for (const c of CONSOLES) {
+    const inp = document.getElementById(`rp-${c}`);
+    if (inp) {
+      romPaths[c] = inp.value.trim();
+    } else {
+      // Fall back to whatever is in the draft, normalised to a string
+      const v = (settingsDraft.rom_paths||{})[c];
+      romPaths[c] = typeof v === 'object' ? (v?.path||'') : (v||'');
+    }
+  }
+
+  const emulators = {};
+  for (const c of CONSOLES) {
+    const inp = document.getElementById(`ep-${c}`);
+    const existing = (settingsDraft.emulators||{})[c] || {};
+    emulators[c] = {
+      name:      existing.name      || '',
+      args_flag: existing.args_flag || '',
+      exe:       inp ? inp.value.trim() : (existing.exe||''),
+    };
+  }
+
+  // Collect other_emulators — read directly from DOM inputs to catch latest edits
+  const otherEmulators = (settingsDraft.other_emulators || []).map(e => ({
+    id:          e.id,
+    name:        (document.getElementById(`oe-name-${e.id}`)?.value || e.name || '').trim(),
+    exe:         (document.getElementById(`oe-exe-${e.id}`)?.value  || e.exe  || '').trim(),
+    args_flag:   (document.getElementById(`oe-flag-${e.id}`)?.value || e.args_flag || '').trim(),
+    rom_path:    (document.getElementById(`oe-rom-${e.id}`)?.value  || e.rom_path || '').trim(),
+    extensions:  (document.getElementById(`oe-ext-${e.id}`)?.value  || e.extensions || '').trim(),
+    // console_key: derive from id so it's always stable and unique
+    console_key: `other_${e.id}`,
+  }));
+
+  const res = await pyAPI('save_settings', { rom_paths: romPaths, emulators, other_emulators: otherEmulators });
+  if (res?.ok) {
+    _cachedHasKey = await pyAPI('has_api_key');
+    toast('SETTINGS SAVED', 'Changes applied — refreshing library…');
+    closeSettings();
+    await loadLibrary();
+  } else {
+    toast('ERROR', res?.error||'Failed to save settings', true);
+  }
+}
+
+// ════════════════════════════════════════════ UTILS
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+function toast(title, msg, isErr=false) {
+  const t = document.getElementById('toast');
+  document.getElementById('t-title').textContent = title;
+  document.getElementById('t-msg').textContent   = msg;
+  t.className = isErr ? 'err show' : 'show';
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(()=>t.classList.remove('show'), 4500);
+}
+
+// ════════════════════════════════════════════ KEYBOARD
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') {
+    if (document.getElementById('settings-bg').classList.contains('open')) closeSettings();
+    else closeLaunch();
+  }
+  if ((e.key==='r'||e.key==='R') && !e.target.closest('input,select')) loadLibrary();
+});
+
+// ════════════════════════════════════════════ SETTINGS BUTTON
+document.getElementById('btn-settings').addEventListener('click', openSettings);
+
+// ════════════════════════════════════════════ BOOT
+async function boot() {
+  await pyAPI('start_watching');
+
+  const s = await pyAPI('get_settings');
+  _cachedHasKey = s.has_api_key;
+
+  await loadLibrary();
+
+  // Nudge user to configure paths if nothing was found
+  const missingPaths = Object.values(s.rom_paths||{}).filter(v => !v.exists);
+  if (missingPaths.length > 0 && allROMs.length === 0) {
+    setTimeout(() => toast('SETUP REQUIRED', 'ROM folders are missing. Open ⚙ Settings to configure paths.'), 1200);
+  }
+
+  // Warn if DPAPI failed to decrypt a stored key (e.g. different Windows user, sandboxed env)
+  if (s.key_decrypt_failed) {
+    setTimeout(() => toast('KEY DECRYPTION FAILED', 'Your stored API key could not be decrypted. Please re-enter it in ⚙ Settings → API Key.', true), 2000);
+  } else if (!s.has_api_key) {
+    setTimeout(() => toast('TIP', 'Add a SteamGridDB API key in ⚙ Settings → API Key for automatic box art.'), 3000);
+  }
+}
+
+window.addEventListener('pywebviewready', boot);
+if (document.readyState==='complete') boot();
+else window.addEventListener('load', boot);
+</script>
+</body>
+</html>
