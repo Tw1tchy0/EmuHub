@@ -126,7 +126,6 @@ Use **Settings → OTHER** to add any emulator that isn't in EmuHub's built-in l
 | ROMs not included | You must supply your own ROM files. |
 | Box art requires account | Automatic box art requires a free [SteamGridDB](https://www.steamgriddb.com) API key. |
 | API key is user-bound | The SteamGridDB key is encrypted with Windows DPAPI and tied to your Windows user account. It cannot be transferred to another machine. |
-| AV false positives | PyInstaller-compiled executables are sometimes flagged by antivirus software. See the VirusTotal scan link in each release for verification. |
 
 
 ---
