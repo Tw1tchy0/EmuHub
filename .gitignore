@@ -1,0 +1,53 @@
+# Build artefacts
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.spec.bak
+
+# User data — NEVER commit these
+src/web/*.sqlite3
+*.json.bak
+
+# PyInstaller
+*.pkg
+*.pyz
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+```
+
+**Secrets scan:** Before the first push, run `git log --all --full-history -- "*.json"` to make sure no settings files with encrypted keys accidentally got committed. Even encrypted blobs shouldn't be in a public repo's history.
+
+---
+
+## Repository Structure
+
+A well-organized public repo looks like this:
+```
+EmuHub/
+├── src/
+│   ├── main.py
+│   └── web/
+│       └── index.html
+├── assets/
+│   └── icon.ico
+├── screenshots/          ← add these
+│   ├── library.png
+│   ├── settings.png
+│   └── launch.png
+├── .gitignore
+├── LICENSE
+├── README.md
+├── BUILD.bat
+├── RUN_DEV.bat
+├── EmuHub.spec
+└── version_info.txt
