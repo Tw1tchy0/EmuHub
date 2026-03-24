@@ -542,7 +542,7 @@ class EmuHubAPI:
             init_str = str(initial).strip() if initial else ''
             init = init_str if init_str and Path(init_str).exists() else ''
             res  = self._window.create_file_dialog(
-                webview.FOLDER_DIALOG, directory=init, allow_multiple=False)
+                webview.FileDialog.FOLDER, directory=init, allow_multiple=False)
             return res[0] if res else None
         except Exception:
             return None
@@ -554,7 +554,7 @@ class EmuHubAPI:
             p    = Path(initial.strip()) if initial else None
             init = str(p.parent) if p and p.exists() else ''
             res  = self._window.create_file_dialog(
-                webview.OPEN_DIALOG, directory=init, allow_multiple=False,
+                webview.FileDialog.OPEN, directory=init, allow_multiple=False,
                 file_types=('Executables (*.exe)',))
             return res[0] if res else None
         except Exception:

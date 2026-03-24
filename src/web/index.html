@@ -345,10 +345,11 @@ body::after {
 .art-psp   {background:linear-gradient(160deg,#000a20,#001030);}
 .art-xbox360{background:linear-gradient(160deg,#041200,#082200);}
 
-::-webkit-scrollbar { width:5px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+::-webkit-scrollbar { width:7px; }
+::-webkit-scrollbar-track { background:rgba(255,255,255,.02); border-radius:4px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; min-height:40px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--muted2); }
+::-webkit-scrollbar-thumb:active { background:var(--muted); }
 </style>
 </head>
 <body>
@@ -1089,10 +1090,16 @@ function renderEmuRows() {
         <div class="s-row">
           <label>EXECUTABLE ${badge}</label>
           <div class="s-path-row">
-            <input class="s-path-input ${e.exists?'valid':e.exe?'invalid':''}"
-                   id="ep-${c}" type="text" value="${esc(e.exe||'')}"
-                   placeholder="Path to emulator .exe"
-                   oninput="onEmuPathInput('${c}',this.value)">
+            <div class="s-input-wrap">
+              <input class="s-path-input ${e.exists?'valid':e.exe?'invalid':''}"
+                     id="ep-${c}" type="text" value="${esc(e.exe||'')}"
+                     placeholder="Path to emulator .exe"
+                     oninput="onEmuPathInput('${c}',this.value)">
+              <button class="s-clear-btn ${e.exe?'visible':''}"
+                      id="ep-clear-${c}"
+                      title="Clear path"
+                      onclick="clearEmuPath('${c}')">&#10005;</button>
+            </div>
             <button class="s-browse-btn" onclick="browseEmuExe('${c}')">BROWSE…</button>
           </div>
         </div>
@@ -1104,10 +1111,27 @@ async function onEmuPathInput(c, val) {
   if (!settingsDraft.emulators)    settingsDraft.emulators = {};
   if (!settingsDraft.emulators[c]) settingsDraft.emulators[c] = {};
   settingsDraft.emulators[c].exe = val;
+  const xBtn = document.getElementById(`ep-clear-${c}`);
+  if (xBtn) xBtn.classList.toggle('visible', val.trim() !== '');
   const ok  = val ? await pyAPI('validate_path', val) : false;
   const inp = document.getElementById(`ep-${c}`);
-  inp.classList.toggle('valid',   !!ok);
-  inp.classList.toggle('invalid', !!val && !ok);
+  if (inp) {
+    inp.classList.toggle('valid',   !!ok);
+    inp.classList.toggle('invalid', !!val && !ok);
+  }
+}
+
+function clearEmuPath(c) {
+  const inp  = document.getElementById(`ep-${c}`);
+  const xBtn = document.getElementById(`ep-clear-${c}`);
+  if (!inp) return;
+  inp.value = '';
+  inp.classList.remove('valid', 'invalid');
+  if (xBtn) xBtn.classList.remove('visible');
+  if (!settingsDraft.emulators)    settingsDraft.emulators = {};
+  if (!settingsDraft.emulators[c]) settingsDraft.emulators[c] = {};
+  settingsDraft.emulators[c].exe = '';
+  renderEmuRows();
 }
 
 async function browseEmuExe(c) {
@@ -1160,6 +1184,10 @@ function renderOtherEmus() {
                      id="oe-exe-${e.id}" type="text" value="${esc(e.exe||'')}"
                      placeholder="Path to emulator .exe"
                      oninput="onOtherPathInput('${e.id}','exe',this.value)">
+              <button class="s-clear-btn ${e.exe?'visible':''}"
+                      id="oe-exe-clear-${e.id}"
+                      title="Clear path"
+                      onclick="clearOtherPath('${e.id}','exe')">&#10005;</button>
             </div>
             <button class="s-browse-btn" onclick="browseOtherExe('${e.id}')">BROWSE…</button>
           </div>
@@ -1173,6 +1201,10 @@ function renderOtherEmus() {
                      id="oe-rom-${e.id}" type="text" value="${esc(e.rom_path||'')}"
                      placeholder="Folder containing ROMs for this emulator"
                      oninput="onOtherPathInput('${e.id}','rom_path',this.value)">
+              <button class="s-clear-btn ${e.rom_path?'visible':''}"
+                      id="oe-rom-clear-${e.id}"
+                      title="Clear path"
+                      onclick="clearOtherPath('${e.id}','rom_path')">&#10005;</button>
             </div>
             <button class="s-browse-btn" onclick="browseOtherRom('${e.id}')">BROWSE…</button>
           </div>
@@ -1218,12 +1250,27 @@ function onOtherFieldInput(id, field, val) {
 
 async function onOtherPathInput(id, field, val) {
   onOtherFieldInput(id, field, val);
+  const key  = field === 'rom_path' ? 'rom' : 'exe';
+  const xBtn = document.getElementById(`oe-${key}-clear-${id}`);
+  if (xBtn) xBtn.classList.toggle('visible', val.trim() !== '');
   const ok  = val ? await pyAPI('validate_path', val) : false;
-  const inp = document.getElementById(`oe-${field === 'rom_path' ? 'rom' : 'exe'}-${id}`);
+  const inp = document.getElementById(`oe-${key}-${id}`);
   if (inp) {
     inp.classList.toggle('valid',   !!ok);
     inp.classList.toggle('invalid', !!val && !ok);
   }
+}
+
+function clearOtherPath(id, field) {
+  const key  = field === 'rom_path' ? 'rom' : 'exe';
+  const inp  = document.getElementById(`oe-${key}-${id}`);
+  const xBtn = document.getElementById(`oe-${key}-clear-${id}`);
+  if (!inp) return;
+  inp.value = '';
+  inp.classList.remove('valid', 'invalid');
+  if (xBtn) xBtn.classList.remove('visible');
+  onOtherFieldInput(id, field, '');
+  renderOtherEmus();
 }
 
 async function browseOtherExe(id) {
@@ -1272,11 +1319,15 @@ async function runDetect() {
   const res = await pyAPI('detect_emulators');
   btn.disabled = false;
   const found = res?.found || [];
-  if (!found.length) {
-    div.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0;">No additional emulators found. Check manually in the Emulators tab.</div>`;
+  const visible = found.filter(e => !e.configured);
+  if (!visible.length) {
+    const msg = found.length
+      ? `All detected emulators are already configured.`
+      : `No additional emulators found. Check manually in the Emulators tab.`;
+    div.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0;">${msg}</div>`;
     return;
   }
-  div.innerHTML = found.map((e,i) => {
+  div.innerHTML = visible.map((e,i) => {
     const tags = e.consoles.map(c=>`<span class="card-tag tag-${c}">${CON_LABEL[c]||c}</span>`).join('');
     return `
       <div class="detected-card" id="dc-${i}">
@@ -1285,9 +1336,9 @@ async function runDetect() {
             <div class="detected-name">${esc(e.name)}</div>
             <div class="detected-path">${esc(e.exe)}</div>
           </div>
-          <button class="btn-apply ${e.configured?'applied':''}" id="dca-${i}"
-                  onclick="applyDetected(${i},'${esc(e.exe)}',${JSON.stringify(e.consoles)},'${esc(e.name)}','${esc(e.args_flag||'')}')">
-            ${e.configured ? '✓ IN USE' : 'APPLY'}
+          <button class="btn-apply" id="dca-${i}"
+                  onclick="applyDetected(${i},'${jsesc(e.exe)}',${esc(JSON.stringify(e.consoles))},'${esc(e.name)}','${esc(e.args_flag||'')}')">
+            APPLY
           </button>
         </div>
         <div class="detected-tags">${tags}</div>
@@ -1415,6 +1466,9 @@ async function saveAllSettings() {
 // ════════════════════════════════════════════ UTILS
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function jsesc(s) {
+  return esc(String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
 }
 function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
