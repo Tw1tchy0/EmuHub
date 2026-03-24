@@ -1,0 +1,28 @@
+# Build output
+dist/
+build/
+*.spec.bak
+
+# PyInstaller
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Local data / user config
+*.json
+!package.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
