@@ -2,9 +2,6 @@
 # PyInstaller build spec — produces a single portable EmuHub.exe
 # Run: pyinstaller EmuHub.spec
 
-import os
-block_cipher = None
-
 a = Analysis(
     ['src/main.py'],
     pathex=['.'],
@@ -24,13 +21,9 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
-    noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure, a.zipped_data)
 
 exe = EXE(
     pyz,
@@ -42,7 +35,6 @@ exe = EXE(
     name='EmuHub',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
     upx=True,
     upx_exclude=[],
     # Fixed extraction folder in %TEMP% — re-runs overwrite the same location

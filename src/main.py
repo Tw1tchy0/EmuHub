@@ -121,6 +121,7 @@ def _load_settings() -> dict:
                 data.setdefault('rom_paths', {})
                 data.setdefault('emulators', {})
                 data.setdefault('other_emulators', [])   # custom "Other" entries
+                data.setdefault('onboarding_complete', True)   # existing file = existing user, skip tutorial
                 for k, v in DEFAULT_ROM_PATHS.items():
                     data['rom_paths'].setdefault(k, v)
                 for k, v in DEFAULT_EMULATORS.items():
@@ -486,11 +487,12 @@ class EmuHubAPI:
             other.append(e)
 
         return {
-            'rom_paths':          rom_paths,
-            'emulators':          emulators,
-            'other_emulators':    other,
-            'has_api_key':        bool(self._api_key),
-            'key_decrypt_failed': self._key_decrypt_failed,
+            'rom_paths':            rom_paths,
+            'emulators':            emulators,
+            'other_emulators':      other,
+            'has_api_key':          bool(self._api_key),
+            'key_decrypt_failed':   self._key_decrypt_failed,
+            'onboarding_complete':  s.get('onboarding_complete', False),
         }
 
     def save_settings(self, data: dict) -> dict:
@@ -524,6 +526,15 @@ class EmuHubAPI:
                         })
                 s['other_emulators'] = clean_other
 
+            _save_settings(s)
+            return {'ok': True}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex)}
+
+    def complete_onboarding(self) -> dict:
+        try:
+            s = _load_settings()
+            s['onboarding_complete'] = True
             _save_settings(s)
             return {'ok': True}
         except Exception as ex:

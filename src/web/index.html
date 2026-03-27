@@ -283,6 +283,45 @@ body::after {
 /* scanning animation */
 .scan-indicator { display:flex; align-items:center; gap:8px; font-family:'Orbitron',monospace; font-size:9px; color:var(--a1); letter-spacing:2px; padding:8px 0; }
 
+/* ════════════════════════════════════════════ TUTORIAL OVERLAY */
+#tutorial-bg { position:fixed; inset:0; background:rgba(0,0,0,.85); backdrop-filter:blur(16px); z-index:850; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .3s; }
+#tutorial-bg.open { opacity:1; pointer-events:all; }
+.tut-card { background:var(--panel); border:1px solid var(--border2); border-radius:16px; width:580px; max-width:90vw; max-height:85vh; overflow-y:auto; box-shadow:0 32px 80px rgba(0,0,0,.7); transform:scale(.94) translateY(18px); transition:transform .3s; display:flex; flex-direction:column; }
+#tutorial-bg.open .tut-card { transform:scale(1) translateY(0); }
+.tut-header { padding:32px 32px 0; text-align:center; }
+.tut-logo { font-family:'Orbitron',monospace; font-size:28px; letter-spacing:6px; color:var(--text); }
+.tut-logo em { font-style:normal; color:var(--a1); text-shadow:0 0 18px rgba(0,240,255,.5); }
+.tut-sub { font-family:'Rajdhani',sans-serif; font-size:14px; color:var(--muted); margin-top:8px; }
+.tut-dots { display:flex; justify-content:center; gap:8px; padding:18px 0 8px; }
+.tut-dot { width:10px; height:10px; border-radius:50%; background:var(--border2); transition:all .25s; }
+.tut-dot.active { background:var(--a1); box-shadow:0 0 8px rgba(0,240,255,.5); }
+.tut-dot.done { background:var(--a1); opacity:.4; }
+.tut-body { padding:20px 32px; flex:1; }
+.tut-body h3 { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:3px; color:var(--a1); margin-bottom:12px; }
+.tut-body p { font-family:'Rajdhani',sans-serif; font-size:14px; color:var(--muted2); line-height:1.7; margin-bottom:14px; }
+.tut-body .tut-strong { color:var(--text); }
+.tut-choice { display:flex; gap:12px; margin:18px 0; }
+.tut-choice-btn { flex:1; background:rgba(0,240,255,.06); border:1px solid var(--border2); border-radius:10px; padding:18px 14px; text-align:center; cursor:pointer; transition:all .2s; }
+.tut-choice-btn:hover { border-color:var(--a1); background:rgba(0,240,255,.1); }
+.tut-choice-btn .tut-ch-icon { font-size:24px; margin-bottom:8px; }
+.tut-choice-btn .tut-ch-title { font-family:'Orbitron',monospace; font-size:10px; letter-spacing:2px; color:var(--text); }
+.tut-choice-btn .tut-ch-desc { font-family:'Rajdhani',sans-serif; font-size:12px; color:var(--muted); margin-top:4px; }
+.tut-detect-results { max-height:200px; overflow-y:auto; margin:12px 0; }
+.tut-actions { padding:16px 32px 24px; display:flex; gap:10px; justify-content:flex-end; align-items:center; }
+.tut-actions .tut-skip { margin-right:auto; font-family:'Rajdhani',sans-serif; font-size:12px; color:var(--muted); cursor:pointer; background:none; border:none; text-decoration:underline; transition:color .2s; }
+.tut-actions .tut-skip:hover { color:var(--text); }
+.tut-status { display:inline-flex; align-items:center; gap:6px; font-family:'Rajdhani',sans-serif; font-size:12px; padding:6px 12px; border-radius:6px; margin-bottom:8px; }
+.tut-status.ok { color:#22c55e; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2); }
+.tut-status.pending { color:var(--muted); background:rgba(255,255,255,.03); border:1px solid var(--border); }
+.tut-features { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+.tut-feat { background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:8px; padding:12px; }
+.tut-feat .tut-feat-icon { font-size:18px; margin-bottom:4px; }
+.tut-feat .tut-feat-title { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:1px; color:var(--text); margin-bottom:2px; }
+.tut-feat .tut-feat-desc { font-family:'Rajdhani',sans-serif; font-size:12px; color:var(--muted); line-height:1.4; }
+.tut-api-row { display:flex; gap:8px; margin:12px 0; }
+.tut-api-row input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:7px; color:var(--text); padding:10px 12px; font-family:'Rajdhani',sans-serif; font-size:13px; outline:none; }
+.tut-api-row input:focus { border-color:var(--a1); }
+
 /* ════════════════════════════════════════════ TOAST */
 #toast { position:fixed; bottom:18px; right:18px; background:var(--panel); border:1px solid var(--a1); border-radius:10px; padding:12px 18px; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; color:var(--text); box-shadow:0 0 22px rgba(0,240,255,.18); transform:translateY(60px); opacity:0; transition:all .26s; z-index:9999; max-width:340px; pointer-events:none; }
 #toast.show { transform:translateY(0); opacity:1; }
@@ -595,6 +634,19 @@ body::after {
   </div>
 </div>
 
+<!-- ══ TUTORIAL OVERLAY ═════════════════════════ -->
+<div id="tutorial-bg">
+  <div class="tut-card">
+    <div class="tut-header">
+      <div class="tut-logo">EMU<em>HUB</em></div>
+      <div class="tut-sub" id="tut-sub"></div>
+    </div>
+    <div class="tut-dots" id="tut-dots"></div>
+    <div class="tut-body" id="tut-body"></div>
+    <div class="tut-actions" id="tut-actions"></div>
+  </div>
+</div>
+
 <!-- ══ TOAST ════════════════════════════════════ -->
 <div id="toast"><div class="tt" id="t-title"></div><div id="t-msg"></div></div>
 
@@ -605,7 +657,7 @@ body::after {
 async function pyAPI(method, ...args) {
   if (window.pywebview?.api) return window.pywebview.api[method](...args);
   if (method === 'scan_roms')    return [];
-  if (method === 'get_settings') return { rom_paths:{}, emulators:{}, has_api_key:false };
+  if (method === 'get_settings') return { rom_paths:{}, emulators:{}, has_api_key:false, onboarding_complete:true };
   if (method === 'launch_game')  return { ok:false, error:'Not in EmuHub app' };
   return null;
 }
@@ -1497,6 +1549,287 @@ document.addEventListener('keydown', e => {
 // ════════════════════════════════════════════ SETTINGS BUTTON
 document.getElementById('btn-settings').addEventListener('click', openSettings);
 
+// ════════════════════════════════════════════ TUTORIAL / ONBOARDING
+let tutActive = false;
+let tutStep = 0;
+let _tutSettings = null;
+
+function startTutorial(settings) {
+  tutActive = true;
+  tutStep = 0;
+  _tutSettings = settings;
+  document.getElementById('tutorial-bg').classList.add('open');
+  renderTutStep();
+}
+
+async function closeTutorial() {
+  tutActive = false;
+  document.getElementById('tutorial-bg').classList.remove('open');
+  await pyAPI('complete_onboarding');
+  await loadLibrary();
+}
+
+function tutHasEmulator() {
+  if (!_tutSettings) return false;
+  const emus = _tutSettings.emulators || {};
+  for (const c of CONSOLES) { if (emus[c]?.exe) return true; }
+  return (_tutSettings.other_emulators || []).some(e => e.exe);
+}
+
+function tutHasRomPath() {
+  if (!_tutSettings) return false;
+  const rp = _tutSettings.rom_paths || {};
+  for (const c of CONSOLES) {
+    const v = rp[c];
+    const path = typeof v === 'object' ? (v?.path||'') : (v||'');
+    if (path) return true;
+  }
+  return false;
+}
+
+async function tutRefreshSettings() {
+  _tutSettings = await pyAPI('get_settings');
+  _cachedHasKey = _tutSettings.has_api_key;
+}
+
+function renderTutDots() {
+  document.getElementById('tut-dots').innerHTML = [0,1,2,3,4].map(i =>
+    `<div class="tut-dot${i===tutStep?' active':''}${i<tutStep?' done':''}"></div>`
+  ).join('');
+}
+
+function renderTutStep() {
+  renderTutDots();
+  const body = document.getElementById('tut-body');
+  const acts = document.getElementById('tut-actions');
+  const sub = document.getElementById('tut-sub');
+
+  switch (tutStep) {
+    case 0:
+      sub.textContent = "Let's get you set up in a few quick steps.";
+      body.innerHTML = `
+        <h3>WELCOME</h3>
+        <p>EmuHub is your all-in-one retro game launcher. It organizes your ROM collection
+        with box art and lets you launch any game with one click.</p>
+        <p>This quick setup will walk you through:</p>
+        <p>
+          <span class="tut-strong">1.</span> Adding your emulators<br>
+          <span class="tut-strong">2.</span> Pointing to your ROM folders<br>
+          <span class="tut-strong">3.</span> Optional cover art setup
+        </p>`;
+      acts.innerHTML = `
+        <button class="tut-skip" onclick="closeTutorial()">Skip setup</button>
+        <button class="btn-primary" onclick="tutStep=1;renderTutStep();" style="padding:12px 28px;">GET STARTED</button>`;
+      break;
+
+    case 1: {
+      sub.textContent = 'Step 1 of 3 — Emulators';
+      const hasEmu = tutHasEmulator();
+      body.innerHTML = `
+        <h3>ADD YOUR EMULATORS</h3>
+        <p>EmuHub needs to know which emulators you have installed so it can launch your games.</p>
+        ${hasEmu ? '<div class="tut-status ok">&#10003; At least one emulator configured</div>' : '<div class="tut-status pending">No emulators configured yet</div>'}
+        <div class="tut-choice">
+          <div class="tut-choice-btn" onclick="tutRunDetect()">
+            <div class="tut-ch-icon">&#128269;</div>
+            <div class="tut-ch-title">AUTO-DETECT</div>
+            <div class="tut-ch-desc">Scan your system for known emulators</div>
+          </div>
+          <div class="tut-choice-btn" onclick="tutManualEmu()">
+            <div class="tut-ch-icon">&#9881;</div>
+            <div class="tut-ch-title">MANUAL SETUP</div>
+            <div class="tut-ch-desc">Browse to your emulator .exe files</div>
+          </div>
+        </div>
+        <div id="tut-detect-area"></div>`;
+      acts.innerHTML = `
+        <button class="tut-skip" onclick="closeTutorial()">Skip setup</button>
+        <button class="btn-ghost" onclick="tutStep=0;renderTutStep();" style="padding:10px 18px;">BACK</button>
+        <button class="btn-primary" id="tut-next-1" onclick="tutStep=2;renderTutStep();" style="padding:10px 22px;" ${hasEmu?'':'disabled'}>NEXT</button>`;
+      break;
+    }
+
+    case 2: {
+      sub.textContent = 'Step 2 of 3 — ROM Folders';
+      const hasRom = tutHasRomPath();
+      body.innerHTML = `
+        <h3>POINT TO YOUR ROMS</h3>
+        <p>Tell EmuHub where your game files are stored. Only consoles with a configured emulator are shown.</p>
+        ${hasRom ? '<div class="tut-status ok">&#10003; At least one ROM path set</div>' : '<div class="tut-status pending">No ROM paths configured yet</div>'}
+        <p style="margin-top:8px;">
+          <button class="btn-primary" onclick="tutOpenRomPaths()" style="padding:10px 18px;font-size:10px;">OPEN ROM PATHS SETTINGS</button>
+        </p>
+        <p style="font-size:12px;color:var(--muted);">The settings panel will open. Add your ROM folders, then click <strong style="color:var(--a1)">SAVE CHANGES</strong> to continue.</p>`;
+      acts.innerHTML = `
+        <button class="tut-skip" onclick="closeTutorial()">Skip setup</button>
+        <button class="btn-ghost" onclick="tutStep=1;renderTutStep();" style="padding:10px 18px;">BACK</button>
+        <button class="btn-primary" id="tut-next-2" onclick="tutStep=3;renderTutStep();" style="padding:10px 22px;" ${hasRom?'':'disabled'}>NEXT</button>`;
+      break;
+    }
+
+    case 3:
+      sub.textContent = 'Step 3 of 3 — Cover Art (Optional)';
+      body.innerHTML = `
+        <h3>STEAMGRIDDB API KEY</h3>
+        <p>EmuHub can automatically download <span class="tut-strong">box art</span> for every game in your library using
+        <a href="https://www.steamgriddb.com" target="_blank" style="color:var(--a1);text-decoration:underline;">SteamGridDB</a> — a free
+        community database of game artwork.</p>
+        <p>This step is <span class="tut-strong">completely optional</span>. Your library works fine without it, but the art makes it look great.</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7;">
+          <strong style="color:var(--text)">How to get a key:</strong><br>
+          1. Go to <a href="https://www.steamgriddb.com" target="_blank" style="color:var(--a1);">steamgriddb.com</a> and create a free account<br>
+          2. Click your Profile &#8594; Preferences &#8594; API<br>
+          3. Generate an API key and paste it below
+        </p>
+        <div class="tut-api-row">
+          <input type="password" id="tut-api-input" placeholder="Paste your API key here…" autocomplete="off" spellcheck="false">
+          <button class="btn-primary" onclick="tutSaveApiKey()" style="padding:10px 18px;font-size:10px;">SAVE KEY</button>
+        </div>
+        <div id="tut-api-status" style="margin-top:6px;"></div>`;
+      acts.innerHTML = `
+        <button class="tut-skip" onclick="closeTutorial()">Skip setup</button>
+        <button class="btn-ghost" onclick="tutStep=2;renderTutStep();" style="padding:10px 18px;">BACK</button>
+        <button class="btn-primary" onclick="tutStep=4;renderTutStep();" style="padding:10px 22px;">${_cachedHasKey?'NEXT':'SKIP FOR NOW'}</button>`;
+      break;
+
+    case 4:
+      sub.textContent = "You're all set!";
+      body.innerHTML = `
+        <h3>EXPLORE EMUHUB</h3>
+        <p>Your library is ready. Here's a quick look at what you can do:</p>
+        <div class="tut-features">
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#128270;</div>
+            <div class="tut-feat-title">SEARCH</div>
+            <div class="tut-feat-desc">Instantly find any game by name</div>
+          </div>
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#127918;</div>
+            <div class="tut-feat-title">LAUNCH</div>
+            <div class="tut-feat-desc">Click a game to see details and launch it</div>
+          </div>
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#128203;</div>
+            <div class="tut-feat-title">FILTER</div>
+            <div class="tut-feat-desc">Use the sidebar to filter by console</div>
+          </div>
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#9881;</div>
+            <div class="tut-feat-title">SETTINGS</div>
+            <div class="tut-feat-desc">Manage emulators, paths, and API key anytime</div>
+          </div>
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#128260;</div>
+            <div class="tut-feat-title">SORT</div>
+            <div class="tut-feat-desc">Sort by name, console, or newest added</div>
+          </div>
+          <div class="tut-feat">
+            <div class="tut-feat-icon">&#128269;</div>
+            <div class="tut-feat-title">AUTO-DETECT</div>
+            <div class="tut-feat-desc">Scan for new emulators anytime from the toolbar</div>
+          </div>
+        </div>`;
+      acts.innerHTML = `
+        <button class="btn-ghost" onclick="tutStep=3;renderTutStep();" style="padding:10px 18px;">BACK</button>
+        <button class="btn-primary" onclick="closeTutorial();" style="padding:12px 28px;">START USING EMUHUB</button>`;
+      break;
+  }
+}
+
+async function tutRunDetect() {
+  const area = document.getElementById('tut-detect-area');
+  if (!area) return;
+  area.innerHTML = '<div class="scan-indicator"><div class="spin" style="width:14px;height:14px;border-width:2px;margin-right:4px"></div>SCANNING SYSTEM…</div>';
+  const res = await pyAPI('detect_emulators');
+  const found = res?.found || [];
+  const visible = found.filter(e => !e.configured);
+  if (!visible.length) {
+    const msg = found.length
+      ? 'All detected emulators are already configured.'
+      : 'No emulators found automatically. Try manual setup.';
+    area.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:8px 0;">${msg}</div>`;
+    return;
+  }
+  area.innerHTML = '<div class="tut-detect-results">' + visible.map((e,i) => {
+    const tags = e.consoles.map(c=>`<span class="card-tag tag-${c}">${CON_LABEL[c]||c}</span>`).join('');
+    return `
+      <div class="detected-card" id="tdc-${i}">
+        <div class="detected-card-top">
+          <div>
+            <div class="detected-name">${esc(e.name)}</div>
+            <div class="detected-path">${esc(e.exe)}</div>
+          </div>
+          <button class="btn-apply" id="tdca-${i}"
+                  onclick="tutApplyDetected(${i},'${jsesc(e.exe)}',${esc(JSON.stringify(e.consoles))},'${esc(e.name)}','${esc(e.args_flag||'')}')">
+            APPLY
+          </button>
+        </div>
+        <div class="detected-tags">${tags}</div>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+async function tutApplyDetected(idx, exe, consoles, name, argsFlag) {
+  if (typeof consoles === 'string') { try { consoles = JSON.parse(consoles); } catch(_) { consoles = []; } }
+  const btn = document.getElementById(`tdca-${idx}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const res = await pyAPI('apply_detected_emulator', exe, consoles, name, argsFlag);
+  if (res?.ok) {
+    if (btn) { btn.textContent = '✓ APPLIED'; btn.style.opacity='.5'; }
+    await tutRefreshSettings();
+    renderTutStep();
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'APPLY'; }
+    toast('ERROR', res?.error||'Failed to apply', true);
+  }
+}
+
+async function tutManualEmu() {
+  document.getElementById('tutorial-bg').classList.remove('open');
+  await openSettingsToTab('tab-emus');
+  const observer = new MutationObserver(async () => {
+    if (!document.getElementById('settings-bg').classList.contains('open') && tutActive) {
+      observer.disconnect();
+      await tutRefreshSettings();
+      document.getElementById('tutorial-bg').classList.add('open');
+      renderTutStep();
+    }
+  });
+  observer.observe(document.getElementById('settings-bg'), { attributes: true, attributeFilter: ['class'] });
+}
+
+async function tutOpenRomPaths() {
+  document.getElementById('tutorial-bg').classList.remove('open');
+  await openSettingsToTab('tab-roms');
+  const observer = new MutationObserver(async () => {
+    if (!document.getElementById('settings-bg').classList.contains('open') && tutActive) {
+      observer.disconnect();
+      await tutRefreshSettings();
+      document.getElementById('tutorial-bg').classList.add('open');
+      renderTutStep();
+    }
+  });
+  observer.observe(document.getElementById('settings-bg'), { attributes: true, attributeFilter: ['class'] });
+}
+
+async function tutSaveApiKey() {
+  const inp = document.getElementById('tut-api-input');
+  const status = document.getElementById('tut-api-status');
+  const val = inp?.value.trim();
+  if (!val) { if (status) status.innerHTML = '<span style="color:var(--a2);font-size:12px;">Please enter an API key</span>'; return; }
+  const res = await pyAPI('save_api_key', val);
+  if (res?.ok) {
+    _cachedHasKey = true;
+    artCache = {}; localStorage.removeItem('art_cache');
+    if (status) status.innerHTML = '<span style="color:#22c55e;font-size:12px;">&#10003; API key saved and encrypted</span>';
+    if (inp) inp.value = '';
+    const acts = document.getElementById('tut-actions');
+    if (acts) { const nb = acts.querySelector('.btn-primary:last-child'); if (nb) nb.textContent = 'NEXT'; }
+  } else {
+    if (status) status.innerHTML = `<span style="color:var(--a2);font-size:12px;">${esc(res?.error||'Failed to save key')}</span>`;
+  }
+}
+
 // ════════════════════════════════════════════ BOOT
 async function boot() {
   await pyAPI('start_watching');
@@ -1504,7 +1837,15 @@ async function boot() {
   const s = await pyAPI('get_settings');
   _cachedHasKey = s.has_api_key;
 
+  // Always load library first so games are cached
   await loadLibrary();
+
+  // Show onboarding tutorial on first run
+  if (!s.onboarding_complete) {
+    _tutSettings = s;
+    startTutorial(s);
+    return;
+  }
 
   // Nudge user to configure paths if nothing was found
   const missingPaths = Object.values(s.rom_paths||{}).filter(v => !v.exists);
