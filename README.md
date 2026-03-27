@@ -87,21 +87,23 @@ EmuHub is a single desktop application that brings every emulator you have into 
 
 ## First-Time Setup
 
-1. **Launch EmuHub**
-2. Click **⚙ SETTINGS** in the top-right corner
-3. **ROM PATHS tab** — point each console at the folder containing its ROMs
-4. **EMULATORS tab** — point each console at its emulator `.exe`
-5. Click **SAVE CHANGES** — your library populates instantly
+When you launch EmuHub for the first time, a **guided onboarding wizard** walks you through three quick steps:
 
-### Auto-detecting emulators
+1. **Emulators** — Auto-detect installed emulators on your system or open Settings to manually browse to each `.exe`
+2. **ROM Folders** — Open Settings to point each console at the folder where its ROMs are stored
+3. **Cover Art (optional)** — Enter a free [SteamGridDB](https://www.steamgriddb.com) API key so EmuHub can automatically download box art for every game
 
-Open **Settings → AUTO-DETECT** and click **SCAN NOW**. EmuHub searches your system for known emulator executables and lists what it finds. Click **Apply** on any result to use it.
+After setup you'll see a quick feature overview — search, launch, filter by console, sort, and more.
 
-### Box art (optional)
+The wizard only appears once. You can skip any step and configure everything later via **⚙ Settings**.
+
+> You can also click the **AUTO-DETECT** button on the main toolbar at any time to scan for new emulators.
+
+### Box art setup
 
 1. Create a free account at [steamgriddb.com](https://www.steamgriddb.com)
 2. Go to **Profile → Preferences → API → Generate API Key**
-3. In EmuHub, open **Settings → API KEY**, paste your key, and click **SAVE**
+3. During the wizard (or later in **Settings → API KEY**), paste your key and click **SAVE**
 
 Box art loads automatically for every game and is cached locally — it only downloads once.
 
