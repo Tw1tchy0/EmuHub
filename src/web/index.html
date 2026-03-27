@@ -78,6 +78,8 @@ body::after {
 #sort { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:7px; font-family:'Rajdhani',sans-serif; font-size:13px; outline:none; cursor:pointer; }
 #refresh-btn { background:transparent; border:1px solid var(--a1); color:var(--a1); padding:8px 16px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; cursor:pointer; border-radius:4px; transition:background .18s; white-space:nowrap; }
 #refresh-btn:hover { background:rgba(0,240,255,.08); }
+#detect-btn { background:transparent; border:1px solid var(--a1); color:var(--a1); padding:8px 16px; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:2px; cursor:pointer; border-radius:4px; transition:background .18s; white-space:nowrap; }
+#detect-btn:hover { background:rgba(0,240,255,.08); }
 #section-bar { display:flex; align-items:center; gap:10px; padding:12px 22px 8px; flex-shrink:0; }
 #section-bar h2 { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; }
 .sec-line { flex:1; height:1px; background:var(--border); }
@@ -462,6 +464,7 @@ body::after {
         <option value="newest">Newest First</option>
       </select>
       <button id="refresh-btn" onclick="loadLibrary()">↻ REFRESH</button>
+      <button id="detect-btn" onclick="openSettingsToTab('tab-detect')">&#128269; AUTO-DETECT</button>
     </div>
     <div id="section-bar">
       <h2>Library</h2><div class="sec-line"></div><span id="count-lbl"></span>
@@ -502,25 +505,15 @@ body::after {
     </div>
 
     <div class="stabs">
-      <button class="stab active" data-tab="tab-roms">ROM PATHS</button>
-      <button class="stab"        data-tab="tab-emus">EMULATORS</button>
+      <button class="stab active" data-tab="tab-emus">EMULATORS</button>
       <button class="stab"        data-tab="tab-detect">AUTO-DETECT</button>
+      <button class="stab"        data-tab="tab-roms">ROM PATHS</button>
       <button class="stab"        data-tab="tab-other">OTHER</button>
       <button class="stab"        data-tab="tab-api">API KEY</button>
     </div>
 
-    <!-- TAB: ROM PATHS -->
-    <div class="spanel active" id="tab-roms">
-      <div class="s-section-head">ROM Directories</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
-        Set the folder where ROMs are stored for each console. EmuHub watches these folders
-        and automatically detects new games when files are added.
-      </p>
-      <div id="rom-path-rows"></div>
-    </div>
-
     <!-- TAB: EMULATORS -->
-    <div class="spanel" id="tab-emus">
+    <div class="spanel active" id="tab-emus">
       <div class="s-section-head">Emulator Executables</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
         Point each console to the correct emulator <code style="color:var(--a1)">.exe</code>.
@@ -540,6 +533,16 @@ body::after {
         &#128269; SCAN NOW
       </button>
       <div id="detect-results"></div>
+    </div>
+
+    <!-- TAB: ROM PATHS -->
+    <div class="spanel" id="tab-roms">
+      <div class="s-section-head">ROM Directories</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Set the folder where ROMs are stored for each console. EmuHub watches these folders
+        and automatically detects new games when files are added.
+      </p>
+      <div id="rom-path-rows"></div>
     </div>
 
     <!-- TAB: OTHER EMULATORS -->
@@ -572,7 +575,7 @@ body::after {
           <button class="btn-del-key" id="btn-del-key" onclick="deleteApiKey()">REMOVE</button>
         </div>
         <div class="key-hint">
-          Get a free key at <a href="#" onclick="return false;" style="pointer-events:none">steamgriddb.com</a> →
+          Get a free key at <a href="https://www.steamgriddb.com" target="_blank" style="color:var(--a1);text-decoration:underline;cursor:pointer;">steamgriddb.com</a> →
           Profile → Preferences → API → Generate API Key.<br>
           Your key is encrypted with Windows DPAPI and never stored in plain text.
           It is tied to your Windows user account and cannot be read by other users.
@@ -987,8 +990,9 @@ async function openSettings() {
   renderApiKeyTab();
   document.getElementById('detect-results').innerHTML = '';
   document.getElementById('settings-bg').classList.add('open');
-  switchTab('tab-roms');
+  switchTab('tab-emus');
 }
+async function openSettingsToTab(tab) { await openSettings(); switchTab(tab); }
 function closeSettings()       { document.getElementById('settings-bg').classList.remove('open'); }
 function closeSettingsBg(e)    { if (e.target===document.getElementById('settings-bg')) closeSettings(); }
 
