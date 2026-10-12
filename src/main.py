@@ -4,8 +4,9 @@ Python + pywebview backend.
 """
 
 import sys, os, json, re, threading, subprocess, time, shutil
-import ctypes, ctypes.wintypes, base64
+import ctypes, ctypes.wintypes, base64, hashlib, http.client
 import urllib.request, urllib.parse, urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import webview
 
@@ -52,6 +53,14 @@ SETTINGS_DIR  = Path(os.environ.get('APPDATA', str(Path.home()))) / 'EmuHub'
 SETTINGS_FILE = SETTINGS_DIR / 'settings.json'
 SETTINGS_TMP  = SETTINGS_DIR / 'settings.json.tmp'
 SETTINGS_BAK  = SETTINGS_DIR / 'settings.json.bak'
+
+# Box art lives beside settings: a JSON index of title -> resolved URL, plus the
+# downloaded cover files themselves so repeat launches never touch the network.
+ART_INDEX_FILE = SETTINGS_DIR / 'art_cache.json'
+COVERS_DIR     = SETTINGS_DIR / 'covers'
+
+# Seconds between ROM-folder change checks.
+WATCH_INTERVAL = 5
 
 DEFAULT_ROM_PATHS = {
     'switch':  '', '3ds': '', 'ds': '', 'gba': '', 'gb': '',
@@ -345,6 +354,16 @@ def _clean_title(filename: str) -> str:
     return re.sub(r'\s+', ' ', name).strip()
 
 
+def _stable_id(path) -> str:
+    """Identify a ROM by its path, consistently across runs.
+
+    Python salts str.__hash__ per process, so the previous hash()-based ids
+    changed on every launch — fine while nothing persisted them, but it would
+    quietly break anything stored per game (favourites, play counts, overrides).
+    """
+    return hashlib.sha1(str(path).casefold().encode('utf-8', 'replace')).hexdigest()[:16]
+
+
 def _scan_roms(settings: dict) -> list:
     results  = []
     seen_ids = set()
@@ -375,7 +394,7 @@ def _scan_roms(settings: dict) -> list:
                     continue
                 if path.suffix.lower() not in valid_exts:
                     continue
-                rom_id = str(abs(hash(str(path))))
+                rom_id = _stable_id(path)
                 if rom_id in seen_ids:
                     continue
                 seen_ids.add(rom_id)
@@ -417,7 +436,7 @@ def _scan_roms(settings: dict) -> list:
                     continue
                 if valid_exts and path.suffix.lower() not in valid_exts:
                     continue
-                rom_id = str(abs(hash(str(path))))
+                rom_id = _stable_id(path)
                 if rom_id in seen_ids:
                     continue
                 seen_ids.add(rom_id)
@@ -439,6 +458,116 @@ def _scan_roms(settings: dict) -> list:
 
 
 # ══════════════════════════════════════════════════════
+# BOX ART CACHE
+# ══════════════════════════════════════════════════════
+# Two layers, both on disk under %APPDATA%\EmuHub:
+#   art_cache.json — title -> {url, file, ts}. Stores misses (url=None) too, so
+#                    titles SteamGridDB doesn't recognise stop being re-queried
+#                    on every launch. Misses expire so art added later is found.
+#   covers\        — the actual image files, so a warm library paints without
+#                    touching the network at all.
+SGDB_HOST     = 'www.steamgriddb.com'
+ART_MISS_TTL  = 30 * 24 * 3600     # re-check "no art" titles after 30 days
+ART_MAX_BYTES = 8 * 1024 * 1024    # refuse absurdly large downloads
+ART_WORKERS   = 6                  # parallel lookups per batch
+
+_art_lock  = threading.Lock()
+_art_index = None                  # lazy-loaded dict
+_art_dirty = False
+_conn_tls  = threading.local()     # one kept-alive HTTPS connection per worker
+
+
+def _art_key(title: str) -> str:
+    return hashlib.sha1(title.encode('utf-8', 'replace')).hexdigest()[:20]
+
+
+def _load_art_index() -> dict:
+    global _art_index
+    if _art_index is None:
+        try:
+            with open(ART_INDEX_FILE, encoding='utf-8') as f:
+                data = json.load(f)
+            _art_index = data if isinstance(data, dict) else {}
+        except Exception:
+            _art_index = {}
+    return _art_index
+
+
+def _save_art_index():
+    """Write the index out. Callers hold _art_lock."""
+    global _art_dirty
+    if not _art_dirty or _art_index is None:
+        return
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = ART_INDEX_FILE.with_suffix('.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(_art_index, f)
+        os.replace(tmp, ART_INDEX_FILE)
+        _art_dirty = False
+    except Exception:
+        pass
+
+
+def _sgdb_get(path: str, hdrs: dict):
+    """GET from SteamGridDB over a connection this thread keeps alive.
+
+    urllib opens — and throws away — a fresh TCP+TLS connection per call, which
+    is most of the latency when resolving art one title at a time. Reusing the
+    connection removes a full handshake from every request after the first.
+    Returns (status, body_bytes).
+    """
+    for attempt in (0, 1):
+        conn = getattr(_conn_tls, 'sgdb', None)
+        if conn is None:
+            conn = http.client.HTTPSConnection(SGDB_HOST, timeout=8)
+            _conn_tls.sgdb = conn
+        try:
+            conn.request('GET', path, headers=hdrs)
+            resp = conn.getresponse()
+            body = resp.read()      # must drain for the socket to be reusable
+            return resp.status, body
+        except Exception:
+            # Stale keep-alive socket — drop it and retry once on a fresh one.
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _conn_tls.sgdb = None
+            if attempt:
+                raise
+    raise RuntimeError('unreachable')
+
+
+def _download_cover(url: str, title: str) -> str | None:
+    """Fetch the image bytes into covers\\ and return the local path."""
+    try:
+        ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+        if ext not in ('.png', '.jpg', '.jpeg', '.webp'):
+            ext = '.png'
+        dest = COVERS_DIR / (_art_key(title) + ext)
+        if dest.exists() and dest.stat().st_size > 0:
+            return str(dest)
+
+        req = urllib.request.Request(url, headers={'User-Agent': 'EmuHub/1.0'})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            if not r.headers.get('Content-Type', '').startswith('image/'):
+                return None
+            data = r.read(ART_MAX_BYTES + 1)
+        if not data or len(data) > ART_MAX_BYTES:
+            return None
+
+        COVERS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_suffix(dest.suffix + '.tmp')
+        with open(tmp, 'wb') as f:
+            f.write(data)
+        os.replace(tmp, dest)
+        return str(dest)
+    except Exception:
+        return None
+
+
+# ══════════════════════════════════════════════════════
 # PYWEBVIEW JS API
 # ══════════════════════════════════════════════════════
 class EmuHubAPI:
@@ -449,6 +578,7 @@ class EmuHubAPI:
         self._api_key            = None
         self._is_maximized       = False
         self._key_decrypt_failed = False
+        self._art_pool           = None
         self._load_key_internal()
 
     def set_window(self, win):
@@ -669,38 +799,153 @@ class EmuHubAPI:
         return bool(self._api_key)
 
     # ── Art fetching ─────────────────────────────────
+    def _cached_art(self, title: str) -> dict | None:
+        """Return a usable cache entry for this title, or None to go online."""
+        with _art_lock:
+            entry = _load_art_index().get(title)
+        if not entry:
+            return None
+        url = entry.get('url')
+        if not url:
+            # Remembered miss — honour it until it goes stale.
+            if time.time() - entry.get('ts', 0) < ART_MISS_TTL:
+                return {'url': None, 'local': None, 'error': None, 'bad_key': False}
+            return None
+        local = entry.get('file')
+        if local and os.path.isfile(local):
+            return {'url': url, 'local': Path(local).as_uri(),
+                    'error': None, 'bad_key': False}
+        # Known URL but the file is gone (or predates local caching) — re-pull it.
+        local = _download_cover(url, title)
+        if local:
+            with _art_lock:
+                global _art_dirty
+                _load_art_index()[title] = {'url': url, 'file': local, 'ts': time.time()}
+                _art_dirty = True
+        return {'url': url, 'local': Path(local).as_uri() if local else None,
+                'error': None, 'bad_key': False}
+
+    def _resolve_art(self, title: str) -> dict:
+        """Cache lookup, then SteamGridDB. Safe to run on a worker thread."""
+        hit = self._cached_art(title)
+        if hit is not None:
+            return hit
+
+        hdrs = {'Authorization': f'Bearer {self._api_key}', 'User-Agent': 'EmuHub/1.0'}
+        try:
+            status, body = _sgdb_get(
+                '/api/v2/search/autocomplete/' + urllib.parse.quote(title), hdrs)
+            if status == 401:
+                return {'url': None, 'local': None,
+                        'error': 'Invalid or expired API key', 'bad_key': True}
+            if status == 429:
+                return {'url': None, 'local': None,
+                        'error': 'Rate limited — try again shortly', 'bad_key': False}
+            if status != 200:
+                return {'url': None, 'local': None,
+                        'error': f'HTTP {status}', 'bad_key': False}
+
+            sd  = json.loads(body)
+            url = None
+            if sd.get('data'):
+                gid = sd['data'][0]['id']
+                status, body = _sgdb_get(
+                    f'/api/v2/grids/game/{gid}?dimensions=600x900&limit=5', hdrs)
+                if status == 401:
+                    return {'url': None, 'local': None,
+                            'error': 'Invalid or expired API key', 'bad_key': True}
+                if status == 200:
+                    grids = (json.loads(body).get('data') or [])
+                    still = [g for g in grids if not g.get('is_animated', False)]
+                    pick  = (still or grids or [None])[0]
+                    url   = pick.get('url') if pick else None
+
+            local = _download_cover(url, title) if url else None
+            # Record misses as well as hits — that is what stops unrecognised
+            # titles from being looked up again on every single launch.
+            with _art_lock:
+                global _art_dirty
+                _load_art_index()[title] = {'url': url, 'file': local, 'ts': time.time()}
+                _art_dirty = True
+            return {'url': url, 'local': Path(local).as_uri() if local else None,
+                    'error': None, 'bad_key': False}
+        except urllib.error.URLError as e:
+            return {'url': None, 'local': None,
+                    'error': f'Network error: {e.reason}', 'bad_key': False}
+        except Exception as ex:
+            return {'url': None, 'local': None, 'error': str(ex), 'bad_key': False}
+
     def fetch_art(self, title: str) -> dict:
         if not self._api_key:
-            return {'url': None, 'error': None, 'bad_key': False}
-        hdrs = {'Authorization': f'Bearer {self._api_key}', 'User-Agent': 'EmuHub/1.0'}
-        def _get(url):
-            return urllib.request.urlopen(
-                urllib.request.Request(url, headers=hdrs), timeout=8)
+            return {'url': None, 'local': None, 'error': None, 'bad_key': False}
+        res = self._resolve_art(title)
+        with _art_lock:
+            _save_art_index()
+        return res
+
+    def fetch_art_batch(self, titles: list) -> dict:
+        """Resolve several titles at once.
+
+        Lookups run in parallel and share this process, so a batch costs about
+        as much as the slowest single title rather than the sum of all of them.
+        Returns {'results': {title: {url, local}}, 'error': str|None, 'bad_key': bool}
+        """
+        titles = [t for t in dict.fromkeys(titles or []) if t]
+        if not titles:
+            return {'results': {}, 'error': None, 'bad_key': False}
+        if not self._api_key:
+            return {'results': {t: {'url': None, 'local': None} for t in titles},
+                    'error': None, 'bad_key': False}
+
+        # One long-lived pool: its worker threads persist between batches, and
+        # so do the kept-alive connections they hold. A per-batch pool would
+        # hand every batch a fresh set of threads and re-handshake each time.
+        if self._art_pool is None:
+            self._art_pool = ThreadPoolExecutor(
+                max_workers=ART_WORKERS, thread_name_prefix='emuhub-art')
+
+        results, error, bad_key = {}, None, False
+        for title, res in zip(titles, self._art_pool.map(self._resolve_art, titles)):
+            results[title] = {'url': res.get('url'), 'local': res.get('local')}
+            if res.get('bad_key'):
+                bad_key = True
+            if res.get('error') and not error:
+                error = res['error']
+        with _art_lock:
+            _save_art_index()
+        return {'results': results, 'error': error, 'bad_key': bad_key}
+
+    def clear_art_cache(self) -> dict:
+        """Forget every resolved title. Used when the API key changes, since
+        misses recorded under a rejected key would otherwise stick around."""
+        global _art_index, _art_dirty
         try:
-            with _get('https://www.steamgriddb.com/api/v2/search/autocomplete/'
-                      + urllib.parse.quote(title)) as r:
-                sd = json.loads(r.read())
-            if not sd.get('data'):
-                return {'url': None, 'error': None, 'bad_key': False}
-            gid = sd['data'][0]['id']
-            with _get(f'https://www.steamgriddb.com/api/v2/grids/game/{gid}'
-                      '?dimensions=600x900&limit=5') as r2:
-                gd = json.loads(r2.read())
-            grids = gd.get('data') or []
-            for g in grids:
-                if not g.get('is_animated', False):
-                    return {'url': g['url'], 'error': None, 'bad_key': False}
-            return {'url': grids[0]['url'] if grids else None, 'error': None, 'bad_key': False}
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                return {'url': None, 'error': 'Invalid or expired API key', 'bad_key': True}
-            if e.code == 429:
-                return {'url': None, 'error': 'Rate limited — try again shortly', 'bad_key': False}
-            return {'url': None, 'error': f'HTTP {e.code}', 'bad_key': False}
-        except urllib.error.URLError as e:
-            return {'url': None, 'error': f'Network error: {e.reason}', 'bad_key': False}
+            with _art_lock:
+                _art_index = {}
+                _art_dirty = True
+                _save_art_index()
+            shutil.rmtree(COVERS_DIR, ignore_errors=True)
+            return {'ok': True}
         except Exception as ex:
-            return {'url': None, 'error': str(ex), 'bad_key': False}
+            return {'ok': False, 'error': str(ex)}
+
+    def seed_art_cache(self, entries: dict) -> dict:
+        """One-time import of the old localStorage cache (title -> url)."""
+        try:
+            added = 0
+            with _art_lock:
+                global _art_dirty
+                idx = _load_art_index()
+                for title, url in (entries or {}).items():
+                    if title and url and title not in idx:
+                        idx[title] = {'url': url, 'file': None, 'ts': time.time()}
+                        added += 1
+                if added:
+                    _art_dirty = True
+                    _save_art_index()
+            return {'ok': True, 'added': added}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex)}
 
     # ── ROM scanning ─────────────────────────────────
     def scan_roms(self) -> list:
@@ -767,8 +1012,16 @@ class EmuHubAPI:
 
     def _watch_loop(self):
         def snapshot():
+            """Cheap signature of the ROM folders.
+
+            Only directories are stat'd, not every file inside them: a folder's
+            mtime already changes when a ROM is added, removed or renamed, and
+            the file count catches two changes landing in the same second. The
+            old version stat'd every file in the library every couple of
+            seconds, which pinned the disk on large or networked collections.
+            """
             try:
-                files = {}
+                sig = {}
                 s = _load_settings()
                 all_paths = list(s.get('rom_paths', {}).values())
                 for entry in s.get('other_emulators', []):
@@ -778,23 +1031,23 @@ class EmuHubAPI:
                 for p in all_paths:
                     if isinstance(p, dict):
                         p = p.get('path', '')
-                    if p and Path(p).exists():
-                        try:
-                            for f in Path(p).rglob('*'):
-                                try:
-                                    if f.is_file():
-                                        files[str(f)] = f.stat().st_mtime
-                                except (OSError, PermissionError):
-                                    pass
-                        except (OSError, PermissionError):
-                            pass
-                return files
+                    if not p or not Path(p).exists():
+                        continue
+                    try:
+                        for dirpath, _dirnames, filenames in os.walk(p):
+                            try:
+                                sig[dirpath] = (os.stat(dirpath).st_mtime, len(filenames))
+                            except (OSError, PermissionError):
+                                pass
+                    except (OSError, PermissionError):
+                        pass
+                return sig
             except Exception:
                 return {}
 
         last = snapshot()
         while self._watching:
-            time.sleep(2)
+            time.sleep(WATCH_INTERVAL)
             current = snapshot()
             if current != last:
                 last = current
@@ -844,6 +1097,20 @@ def _html_path() -> str:
     return os.path.join(base, 'web', 'index.html')
 
 
+def _html_url() -> str:
+    """A file:// URI, deliberately — not the bare path.
+
+    pywebview treats a bare path as a "local url" (webview.util.is_local_url)
+    and boots a Bottle server for it, so the page ends up on
+    http://127.0.0.1:<random port>. Chromium then refuses to load the
+    file:// covers under %APPDATA% into that page, and the random port
+    changes the origin on every launch, throwing away WebView2's image cache.
+    A file:// URI skips the server: covers load, the origin is stable, and
+    the js_api bridge is unaffected.
+    """
+    return Path(_html_path()).as_uri()
+
+
 def _check_webview2() -> bool:
     import winreg
     keys = [
@@ -888,7 +1155,7 @@ def main():
 
     api = EmuHubAPI()
     win = webview.create_window(
-        title='EmuHub', url=_html_path(), js_api=api,
+        title='EmuHub', url=_html_url(), js_api=api,
         width=1280, height=820, min_size=(900, 600),
         frameless=True, background_color='#0a0a0f', easy_drag=True)
     api.set_window(win)
