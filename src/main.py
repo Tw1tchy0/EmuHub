@@ -15,9 +15,14 @@ try:
 except Exception:               # controller support is optional — never block startup
     ControllerService = None
 
+try:
+    import taskbar
+except Exception:               # cosmetic — never block startup
+    taskbar = None
+
 # Keep in step with version_info.txt — that file stamps the exe, this one is
 # what the update check compares against the latest GitHub release.
-APP_VERSION = '1.3.0-beta'
+APP_VERSION = '1.3.1-beta'
 GITHUB_REPO = 'Tw1tchy0/EmuHub'
 
 # ══════════════════════════════════════════════════════
@@ -1663,6 +1668,12 @@ def main():
         _show_webview2_error()
         sys.exit(1)
 
+    # Only the packaged exe has something meaningful to pin; in dev mode the
+    # "app" is python.exe running a script.
+    pinnable = bool(taskbar and getattr(sys, 'frozen', False))
+    if pinnable:
+        taskbar.set_process_app_id()      # before the window exists
+
     api   = EmuHubAPI()
     saved = _saved_geometry(_load_settings())
     geo   = saved or WIN_DEFAULT
@@ -1674,7 +1685,44 @@ def main():
     api.set_window(win)
     # Alt+F4 and closing from the taskbar don't go through close_window.
     win.events.closing += api.save_window_state
-    webview.start(_restore_geometry, (api, saved), debug=False)
+    webview.start(_on_start, (api, saved, pinnable), debug=False)
+
+
+def _on_start(api, saved, pinnable):
+    _restore_geometry(api, saved)
+    if pinnable:
+        _set_taskbar_identity()
+
+
+def _own_window(timeout=5.0) -> int:
+    """This process's main window handle, once it exists."""
+    user32, me = ctypes.windll.user32, os.getpid()
+    proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        found = []
+        def cb(h, _):
+            pid = ctypes.wintypes.DWORD()
+            user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+            if pid.value == me and user32.IsWindowVisible(h) and not user32.GetWindow(h, 4):
+                found.append(h)                  # visible, unowned: the main window
+            return True
+        user32.EnumWindows(proc(cb), 0)
+        if found:
+            return found[0]
+        time.sleep(0.1)
+    return 0
+
+
+def _set_taskbar_identity():
+    """Give the window an explicit relaunch target, so pinning it to the
+    taskbar makes a pin that launches EmuHub.exe with its own icon."""
+    try:
+        hwnd = _own_window()
+        if hwnd:
+            taskbar.set_window_relaunch(hwnd, sys.executable)
+    except Exception:
+        pass
 
 
 def _restore_geometry(api, saved):
