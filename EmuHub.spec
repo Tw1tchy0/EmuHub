@@ -2,15 +2,26 @@
 # PyInstaller build spec — produces a single portable EmuHub.exe
 # Run: pyinstaller EmuHub.spec
 
+import os, sdl2dll
+
 a = Analysis(
     ['src/main.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=[
+        # Controller support. Only SDL2.dll itself — pysdl2-dll also ships the
+        # image/audio/font libraries, which EmuHub doesn't use. controller.py
+        # points PySDL2 at this folder when running frozen.
+        (os.path.join(sdl2dll.get_dllpath(), 'SDL2.dll'), 'sdl2'),
+    ],
     datas=[
         # Bundle the entire web folder into the exe
         ('src/web', 'web'),
+        # Community controller mappings (SDL_GameControllerDB, zlib licence)
+        ('src/data', 'data'),
     ],
     hiddenimports=[
+        'controller',
+        'sdl2',
         'webview',
         'webview.platforms.winforms',
         'clr',
@@ -20,7 +31,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # The DLL above is bundled directly; leave out the package that carries
+    # the rest of the SDL libraries.
+    excludes=['sdl2dll'],
 )
 
 pyz = PYZ(a.pure, a.zipped_data)
