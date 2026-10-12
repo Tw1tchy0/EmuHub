@@ -37,6 +37,10 @@
   --sh-1: 0 1px 2px rgba(0,0,0,.4);
   --sh-2: 0 10px 30px rgba(0,0,0,.4);
   --sh-3: 0 28px 70px rgba(0,0,0,.6);
+  /* Lifted cards. Offset down with negative spread so the shadow barely rises
+     above the card — sh-2 spread ~20px upward and was cut off by the grid's
+     scroll edge on the top row. */
+  --sh-lift: 0 14px 28px -10px rgba(0,0,0,.6);
 }
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 html,body { height:100%; overflow:hidden; user-select:none; }
@@ -207,7 +211,7 @@ body {
 #refresh-btn svg, #detect-btn svg { width:15px; height:15px; }
 
 /* Page header — large title, quiet subtitle */
-#section-bar { display:flex; align-items:flex-end; gap:16px; padding:22px 22px 14px; flex-shrink:0; }
+#section-bar { display:flex; align-items:flex-end; gap:16px; padding:22px 22px 4px; flex-shrink:0; }
 .sec-titles { flex:1; min-width:0; }
 #section-bar h2 {
   font-family:var(--display); font-size:30px; font-weight:800;
@@ -225,7 +229,12 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 22px 24px;
+  /* A selected card lifts 4px and draws a 2px ring outside its edge; the
+     scroll container clips anything above its padding. scroll-padding keeps
+     the same room when arrow keys or a controller scroll a card into view —
+     otherwise it lands flush against the top edge and gets cut off. */
+  padding: 10px 22px 24px;
+  scroll-padding: 10px 0 24px;
   display: grid;
   /* Five columns that share the full content width. Fixed-width tracks left a
      dead strip beside the scrollbar whenever the window wasn't an exact
@@ -240,8 +249,15 @@ body {
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  /* NO overflow:hidden here — that was clipping the info strip.
-     Each child handles its own overflow. */
+  /* Clip children to the rounded corners. Without it the square-cornered
+     console bar and cover stuck out past the curve, which showed as notches
+     in the selection ring's top corners. The ring is a box-shadow, which a
+     card's own clipping doesn't affect.
+     clip, not hidden: overflow:hidden makes the card a scroll container, and
+     grid is then free to shrink it below its content inside the fixed-height
+     grid — which squashed every card. clip draws the same rounded edge
+     without that. */
+  overflow: clip;
   cursor: pointer;
   position: relative;
   animation: pop .32s ease forwards;
@@ -253,10 +269,10 @@ body {
 .card:hover {
   transform: translateY(-4px);
   border-color: var(--border2);
-  box-shadow: var(--sh-2);
+  box-shadow: var(--sh-lift);
 }
 
-.card-bar { height: 3px; border-radius: var(--r-md) var(--r-md) 0 0; flex-shrink: 0; }
+.card-bar { height: 3px; flex-shrink: 0; }   /* the card's overflow rounds it */
 
 /* ── Cover image area ────────────────────────────── */
 /* The card width now flexes with the window, so the cover holds a fixed poster
@@ -594,6 +610,179 @@ body {
 .rg-sw { bottom:0; left:0;    width:10px; height:10px;cursor:sw-resize; }
 .rg-se { bottom:0; right:0;   width:10px; height:10px;cursor:se-resize; }
 
+/* ════════════════════════════════════════════ LIBRARY FEATURES */
+/* Update pill in the titlebar */
+.tb-update {
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(0,240,255,.1); border:1px solid rgba(0,240,255,.28);
+  color:var(--a1); padding:5px 6px 5px 13px; border-radius:var(--r-pill);
+  font-family:var(--font); font-size:12px; font-weight:600; cursor:pointer;
+  transition:background .16s;
+}
+.tb-update[hidden] { display:none; }
+.tb-update:hover { background:rgba(0,240,255,.16); }
+.tb-update .x {
+  width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  color:var(--text2); font-size:11px; transition:background .15s,color .15s;
+}
+.tb-update .x:hover { background:var(--hover2); color:var(--text); }
+
+.sb-sep { height:1px; background:var(--border); margin:8px 10px; }
+.f-btn[hidden] { display:none; }
+
+/* Favourite toggle on each cover */
+.fav-btn {
+  position:absolute; top:9px; right:9px; z-index:2;
+  width:32px; height:32px; border-radius:50%; border:none;
+  background:rgba(5,5,12,.62); backdrop-filter:blur(6px);
+  color:#fff; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; opacity:0; transform:scale(.85);
+  transition:opacity .18s, transform .18s, background .18s, color .18s;
+}
+.fav-btn svg { width:15px; height:15px; }
+.card:hover .fav-btn, .card.kb-focus .fav-btn { opacity:1; transform:scale(1); }
+.fav-btn:hover { background:rgba(5,5,12,.85); }
+.card.is-fav .fav-btn { opacity:1; transform:scale(1); color:var(--a2); }
+.card.is-fav .fav-btn svg path { fill:currentColor; }
+
+.card.is-hidden .cover { opacity:.45; }
+.hidden-pill {
+  position:absolute; top:9px; left:9px; z-index:2;
+  background:rgba(5,5,12,.7); color:var(--text2);
+  font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  padding:3px 8px; border-radius:var(--r-pill);
+}
+.card-sub { font-size:11.5px; color:var(--text2); margin:-3px 0 8px; }
+
+/* Keyboard / controller focus */
+.card.kb-focus {
+  border-color:var(--a1);
+  box-shadow:0 0 0 2px var(--a1), var(--sh-lift);
+  transform:translateY(-4px);
+}
+
+/* Keyboard / controller focus outside the grid: sidebar filters, game panel */
+.f-btn.nav-focus { outline:2px solid var(--a1); outline-offset:2px; }
+.f-btn.nav-focus:not(.active) { background:var(--hover2); color:var(--text); }
+.modal-btns button.nav-focus { outline:2px solid var(--a1); outline-offset:3px; }
+
+/* Section headings inside the grid ("Continue playing", "All games") */
+.grid-head {
+  grid-column:1/-1; display:flex; align-items:baseline; gap:10px;
+  font-family:var(--display); font-size:15px; font-weight:700; letter-spacing:-.02em;
+  color:var(--text); margin-top:6px;
+}
+.grid-head small { font-family:var(--font); font-size:12px; font-weight:500; color:var(--muted); letter-spacing:0; }
+
+/* Launch modal additions */
+.btn-icon {
+  flex-shrink:0; width:46px; height:46px; border-radius:50%;
+  background:var(--hover); border:1px solid var(--border2); color:var(--text2);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background .16s,color .16s,border-color .16s;
+}
+.btn-icon svg { width:17px; height:17px; }
+.btn-icon:hover { background:var(--hover2); color:var(--text); border-color:var(--muted2); }
+.btn-icon.on { color:var(--a2); border-color:rgba(255,0,102,.35); background:rgba(255,0,102,.08); }
+.btn-icon.on svg path { fill:currentColor; }
+
+/* Game options modal */
+#opts-modal { width:620px; max-width:94vw; max-height:88vh; display:flex; flex-direction:column; }
+.opts-sub { font-size:12.5px; color:var(--muted); margin-top:3px; }
+.opt-sec + .opt-sec { margin-top:22px; }
+.opt-label { display:block; font-size:12.5px; font-weight:600; color:var(--text2); margin:12px 0 6px; }
+.opt-sec .s-section-head + .opt-label { margin-top:0; }
+.opt-row { display:flex; gap:8px; align-items:center; }
+.opt-input {
+  flex:1; min-width:0; width:100%;
+  background:var(--sheet2); border:1px solid var(--border2); color:var(--text);
+  padding:10px 13px; border-radius:var(--r-sm);
+  font-family:var(--font); font-size:13px; outline:none; transition:border-color .2s;
+  user-select:text;
+}
+.opt-input.mono { font-family:var(--mono); font-size:12px; }
+.opt-input:focus { border-color:rgba(0,240,255,.45); }
+.opt-input::placeholder { color:var(--muted2); }
+.opt-hint { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.55; }
+.opt-hint code { font-family:var(--mono); color:var(--a1); }
+.opt-check { display:flex; align-items:center; gap:9px; margin-top:16px; font-size:13px; font-weight:500; color:var(--text); cursor:pointer; }
+.opt-check input { width:16px; height:16px; accent-color:var(--a1); cursor:pointer; }
+.btn-small {
+  background:var(--hover); border:1px solid var(--border2); color:var(--text2);
+  padding:9px 14px; border-radius:var(--r-pill); white-space:nowrap; flex-shrink:0;
+  font-family:var(--font); font-size:12.5px; font-weight:500; cursor:pointer;
+  transition:background .16s,color .16s,border-color .16s;
+}
+.btn-small:hover { background:var(--hover2); color:var(--text); border-color:var(--muted2); }
+.btn-small:disabled { opacity:.4; cursor:default; }
+.opt-art { display:flex; gap:16px; align-items:flex-start; }
+.opt-art-preview {
+  width:96px; aspect-ratio:8/11; flex-shrink:0; border-radius:var(--r-sm); overflow:hidden;
+  background:#050509; border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+  font-size:32px;
+}
+.opt-art-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+.opt-art-side { flex:1; min-width:0; }
+.opt-art-side .opt-hint { margin:0 0 12px; }
+.opt-btns { display:flex; gap:8px; flex-wrap:wrap; }
+#opt-preview { margin:12px 0 0; }
+.smodal-footer .ver { margin-right:auto; align-self:center; font-size:12px; color:var(--muted); }
+
+/* ════════════════════════════════════════════ CONTROLLER TEST */
+.pad-status { display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--text2); margin-bottom:14px; }
+.pad-status .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); flex-shrink:0; }
+.pad-status.warn .dot { background:var(--warn); }
+.pad-empty {
+  background:var(--raised); border:1px dashed var(--border2); border-radius:var(--r-md);
+  padding:28px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:1.6;
+}
+.pad-empty b { display:block; font-family:var(--display); font-size:15px; color:var(--text2); margin-bottom:4px; }
+.pad-card { background:var(--raised); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; margin-bottom:12px; }
+.pad-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pad-name { font-family:var(--display); font-size:14.5px; font-weight:700; letter-spacing:-.02em; color:var(--text); margin-right:auto; }
+.pad-chip { font-size:10.5px; font-weight:600; padding:2px 9px; border-radius:var(--r-pill); background:var(--hover); color:var(--text2); white-space:nowrap; }
+.pad-id { font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-top:6px; user-select:text; word-break:break-all; }
+.pad-note { font-size:12px; color:var(--warn); margin-top:10px; line-height:1.55; }
+.pad-paused { display:none; color:var(--warn); background:rgba(245,158,11,.12); }
+.pad-card.paused .pad-paused { display:inline-block; }
+.pad-card.paused .uc-wrap { opacity:.55; }
+
+/* Universal controller (SVG) + the EmuHub actions it drives */
+.uc-wrap { display:flex; gap:18px; align-items:center; margin-top:14px; }
+.uc { width:340px; max-width:100%; flex-shrink:0; display:block; }
+.uc-body { fill:var(--sheet2); stroke:var(--border2); stroke-width:1.5; }
+.uc text { fill:var(--text2); font-family:var(--font); font-size:12px; font-weight:700;
+           text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+.uc .uc-small { font-size:9.5px; font-weight:600; fill:var(--muted); }
+.uc-btn circle, .uc-btn rect { fill:var(--raised); stroke:var(--border2); stroke-width:1.2;
+                               transition:fill .06s, stroke .06s; }
+.uc-btn path { fill:none; stroke:var(--text2); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.uc-btn.on circle, .uc-btn.on rect { fill:var(--a1); stroke:var(--a1); }
+.uc-btn.on text { fill:#05050c; }
+.uc-btn.on path { stroke:#05050c; }
+.uc-pill.on text { fill:var(--a1); }
+.uc-well { fill:var(--sheet); stroke:var(--border2); stroke-width:1.2; }
+.uc-knob { fill:var(--muted2); stroke:var(--border2); stroke-width:1.2; transition:fill .06s; }
+.uc-stick.on .uc-knob { fill:var(--a1); stroke:var(--a1); }
+.uc-trig-bg   { fill:var(--sheet); stroke:var(--border2); stroke-width:1.2; }
+.uc-trig-fill { fill:var(--a1); }
+.uc-acts { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.uc-act {
+  display:flex; justify-content:space-between; gap:10px; align-items:baseline;
+  padding:7px 11px; border-radius:var(--r-sm); border:1px solid var(--border);
+  background:var(--sheet2); transition:background .08s, border-color .08s;
+}
+.uc-act b { font-size:12.5px; font-weight:600; color:var(--text); }
+.uc-act span { font-size:11.5px; color:var(--muted); text-align:right; }
+.uc-act.on { background:rgba(0,240,255,.1); border-color:rgba(0,240,255,.45); }
+.uc-act.on span { color:var(--a1); }
+.pad-foot { display:flex; align-items:center; gap:10px; margin-top:14px; }
+.pad-raw { margin-top:14px; display:grid; gap:10px; }
+.pad-raw-row { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+.pad-raw-row > span:first-child { width:58px; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.pad-axis { width:70px; height:8px; border-radius:var(--r-pill); background:var(--sheet2); border:1px solid var(--border2); position:relative; overflow:hidden; }
+.pad-axis i { position:absolute; top:0; bottom:0; left:50%; width:3px; margin-left:-1.5px; background:var(--a1); }
+
 /* ════════════════════════════════════════════ CONSOLE PALETTE */
 .bar-3ds   {background:#e8002a;} .bar-ds    {background:#b83228;} .bar-gba  {background:#6b25a0;}
 .bar-gb    {background:#6e9b0a;} .bar-switch{background:#e4000f;} .bar-n64  {background:#109010;}
@@ -661,6 +850,10 @@ body {
   <div class="tb-logo">EMU<em>HUB</em></div>
   <div class="tb-pill"><span class="tb-dot"></span><span id="hdr-count">0 games</span></div>
   <div class="tb-spacer"></div>
+  <button class="tb-update" id="tb-update" hidden onclick="openUpdate()" title="Open the release page">
+    <span id="tb-update-text">Update available</span>
+    <span class="x" onclick="event.stopPropagation();dismissUpdate()" title="Dismiss this version" aria-label="Dismiss">&#10005;</span>
+  </button>
   <button class="tb-icon-btn" id="btn-settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     Settings
@@ -683,12 +876,24 @@ body {
 
   <!-- SIDEBAR -->
   <aside id="sidebar">
-    <div class="sb-section">
-      <div class="sb-label">Consoles</div>
+    <div class="sb-section" id="sb-library">
+      <div class="sb-label">Library</div>
       <button class="f-btn active" data-console="all" onclick="setFilter('all',this)">
         <span class="cdot" style="background:var(--a1);box-shadow:0 0 5px var(--a1)"></span>
         All Games <span class="cbadge" id="b-all">0</span>
       </button>
+      <button class="f-btn" data-console="fav" onclick="setFilter('fav',this)" hidden>
+        <span class="cdot" style="background:var(--a2)"></span>Favorites<span class="cbadge" id="b-fav">0</span>
+      </button>
+      <button class="f-btn" data-console="recent" onclick="setFilter('recent',this)" hidden>
+        <span class="cdot" style="background:var(--warn)"></span>Recently played<span class="cbadge" id="b-recent">0</span>
+      </button>
+      <button class="f-btn" data-console="hidden" onclick="setFilter('hidden',this)" hidden>
+        <span class="cdot" style="background:var(--muted)"></span>Hidden<span class="cbadge" id="b-hidden">0</span>
+      </button>
+    </div>
+    <div class="sb-section" id="sb-consoles">
+      <div class="sb-label">Consoles</div>
       <!-- Nintendo -->
       <button class="f-btn" data-console="switch" onclick="setFilter('switch',this)">
         <span class="cdot bar-switch"></span>Nintendo Switch<span class="cbadge" id="b-switch">0</span>
@@ -760,6 +965,8 @@ body {
         <option value="name">Name A–Z</option>
         <option value="console">Console</option>
         <option value="newest">Newest First</option>
+        <option value="recent">Recently played</option>
+        <option value="played">Most played</option>
       </select>
       <button id="refresh-btn" onclick="loadLibrary()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
@@ -772,8 +979,8 @@ body {
     </div>
     <div id="section-bar">
       <div class="sec-titles">
-        <h2>Library</h2>
-        <p class="sec-sub">Every game you own, in one place.</p>
+        <h2 id="sec-title">Library</h2>
+        <p class="sec-sub" id="sec-sub">Every game you own, in one place.</p>
       </div>
       <span id="count-lbl"></span>
     </div>
@@ -797,8 +1004,72 @@ body {
       <div class="cmd-block" id="modal-cmd"></div>
       <div class="modal-btns">
         <button class="btn-primary" id="btn-launch" onclick="launchGame()">&#9654;&nbsp; Launch game</button>
+        <button class="btn-icon" id="btn-modal-fav" onclick="toggleFavorite(curROM && curROM.id)" title="Favorite (F)" aria-label="Favorite"></button>
+        <button class="btn-icon" onclick="openOpts(curROM && curROM.id)" title="Game options" aria-label="Game options">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        </button>
         <button class="btn-ghost" onclick="closeLaunch()">Close</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GAME OPTIONS MODAL ══════════════════════ -->
+<div class="modal-bg" id="opts-bg" onclick="closeOptsBg(event)">
+  <div class="modal" id="opts-modal">
+    <div class="smodal-header">
+      <div>
+        <h2>Game options</h2>
+        <div class="opts-sub" id="opts-sub"></div>
+      </div>
+      <button class="smodal-close" onclick="closeOpts()">&#10005;</button>
+    </div>
+
+    <div class="spanel active">
+      <section class="opt-sec">
+        <div class="s-section-head">Details</div>
+        <label class="opt-label" for="opt-title">Display name</label>
+        <div class="opt-row">
+          <input class="opt-input" id="opt-title" type="text" maxlength="200" spellcheck="false">
+          <button class="btn-small" onclick="useFileTitle()">Use file name</button>
+        </div>
+        <div class="opt-hint" id="opt-title-hint"></div>
+        <label class="opt-check"><input type="checkbox" id="opt-hidden"> Hide this game from the library</label>
+        <div class="opt-hint">Hidden games are listed under Hidden in the sidebar, so you can bring them back.</div>
+      </section>
+
+      <section class="opt-sec">
+        <div class="s-section-head">Cover art</div>
+        <div class="opt-art">
+          <div class="opt-art-preview" id="opt-art-preview"></div>
+          <div class="opt-art-side">
+            <p class="opt-hint" id="opt-art-status"></p>
+            <div class="opt-btns">
+              <button class="btn-small" onclick="chooseOwnArt()">Use your own image…</button>
+              <button class="btn-small" id="opt-art-reset" onclick="stageArtReset()">Back to automatic</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="opt-sec">
+        <div class="s-section-head">Launch options</div>
+        <label class="opt-label" for="opt-exe">Emulator</label>
+        <div class="opt-row">
+          <input class="opt-input mono" id="opt-exe" type="text" spellcheck="false" oninput="renderOptPreview()">
+          <button class="btn-small" onclick="browseOptExe()">Browse…</button>
+        </div>
+        <div class="opt-hint" id="opt-exe-hint"></div>
+        <label class="opt-label" for="opt-args">Arguments</label>
+        <input class="opt-input mono" id="opt-args" type="text" spellcheck="false" oninput="renderOptPreview()">
+        <div class="opt-hint">Put <code>{rom}</code> where the game's path should go — otherwise it's added at the end. Leave blank for the emulator's default.</div>
+        <div class="cmd-block" id="opt-preview"></div>
+      </section>
+    </div>
+
+    <div class="smodal-footer">
+      <button class="btn-ghost" onclick="closeOpts()">Cancel</button>
+      <button class="btn-primary" id="btn-opts-save" onclick="saveOpts()">Save</button>
     </div>
   </div>
 </div>
@@ -818,6 +1089,7 @@ body {
       <button class="stab"        data-tab="tab-roms">ROM paths</button>
       <button class="stab"        data-tab="tab-other">Other</button>
       <button class="stab"        data-tab="tab-api">API key</button>
+      <button class="stab"        data-tab="tab-pads">Controllers</button>
     </div>
 
     <!-- TAB: EMULATORS -->
@@ -896,7 +1168,20 @@ body {
       </div>
     </div>
 
+    <!-- TAB: CONTROLLERS -->
+    <div class="spanel" id="tab-pads">
+      <div class="s-section-head">Controllers</div>
+      <p class="opt-hint" style="margin:0 0 14px">
+        Press buttons and move the sticks to check that EmuHub reads your controller correctly.
+        Controller navigation is paused on this tab so every button can be tested — use the mouse
+        or <code>Esc</code> to leave.
+      </p>
+      <div class="pad-status" id="pad-status"></div>
+      <div id="pad-list"></div>
+    </div>
+
     <div class="smodal-footer">
+      <span class="ver" id="app-version"></span>
       <button class="btn-ghost" onclick="closeSettings()">Cancel</button>
       <button class="btn-primary" style="max-width:160px;padding:10px" onclick="saveAllSettings()">Save changes</button>
     </div>
@@ -941,6 +1226,7 @@ let allROMs   = [];
 // disk under %APPDATA%\EmuHub — these just avoid re-crossing the bridge.
 let artCache  = {};   // title -> remote URL or null
 let artLocal  = {};   // title -> file:// URL of the downloaded cover
+let artCustom = {};   // title -> true when the cover is the user's own image
 let curFilter = 'all';
 let curROM    = null;
 let toastTmr;
@@ -1062,8 +1348,9 @@ async function fetchArtBatch(titles) {
     }
     const results = res?.results || {};
     for (const t of titles) {
-      artCache[t] = results[t]?.url   ?? null;
-      artLocal[t] = results[t]?.local ?? null;
+      artCache[t]  = results[t]?.url   ?? null;
+      artLocal[t]  = results[t]?.local ?? null;
+      artCustom[t] = !!results[t]?.custom;
     }
     return results;
   } catch {
@@ -1073,12 +1360,9 @@ async function fetchArtBatch(titles) {
 }
 
 async function hydrateArt(roms) {
-  const hasKey = await pyAPI('has_api_key');
-  if (!hasKey) {
-    // No key — clear every spinner so cards don't hang indefinitely
-    roms.forEach(rom => applyArt(rom.id, null));
-    return;
-  }
+  // Ask the backend even without an API key: it then answers from disk only,
+  // which is how covers already downloaded — and the user's own images —
+  // keep showing after a key is removed.
   artHydrationActive  = true;
   artFetchErrorShown  = false;
 
@@ -1142,14 +1426,21 @@ function usableLocalArt(local) {
 }
 
 function applyArt(id, url, local) {
-  const card = document.querySelector(`.card[data-id="${id}"]`);
-  if (!card) return;
-  const ph   = card.querySelector('.cover-ph');
-  const spin = card.querySelector('.cover-spin');
-  if (spin) spin.remove();
-  if (!url && !local) return;
+  // A game can be on screen twice — in "Continue playing" and the full list.
+  document.querySelectorAll(`.card[data-id="${id}"]`)
+    .forEach(card => paintCover(card, url, local));
+}
 
+function paintCover(card, url, local) {
+  const ph    = card.querySelector('.cover-ph');
+  const spin  = card.querySelector('.cover-spin');
   const cover = card.querySelector('.cover');
+  if (spin) spin.remove();
+  // Covers can now change after first paint (own image, reset), so clear the
+  // old one rather than stacking a second <img> on top of it.
+  cover.querySelectorAll('img').forEach(i => i.remove());
+  if (!url && !local) { if (ph) ph.style.display = ''; return; }
+
   const img   = document.createElement('img');
   img.alt = '';
   img.loading = 'lazy';
@@ -1218,7 +1509,7 @@ function updateSidebarFilters() {
   });
 
   // Dynamically add/update/remove "Other" sidebar buttons
-  const sbSection = document.querySelector('.sb-section');   // first section = consoles
+  const sbSection = document.getElementById('sb-consoles');
   // Remove any previously rendered other buttons
   document.querySelectorAll('.f-btn-other').forEach(el => el.remove());
   document.querySelectorAll('.sb-other-sep').forEach(el => el.remove());
@@ -1249,23 +1540,72 @@ function updateSidebarFilters() {
   }
 }
 
-function applyFilters() {
+// Library views that aren't consoles. Hidden games only ever appear in 'hidden'.
+const VIEW_TEXT = {
+  all:    ['Library',          'Every game you own, in one place.'],
+  fav:    ['Favorites',        'The games you’ve hearted.'],
+  recent: ['Recently played',  'Most recent first.'],
+  hidden: ['Hidden games',     'Kept out of the library. Open a game’s options to show it again.'],
+};
+const CONTINUE_ROW = 5;
+
+const shownROMs = () => allROMs.filter(r => !r.hidden);
+const byRecent  = (a,b) => (b.lastPlayed||0) - (a.lastPlayed||0);
+
+function applyFilters(opts = {}) {
   const q    = document.getElementById('search').value.toLowerCase().trim();
   const sort = document.getElementById('sort').value;
-  let list = allROMs.filter(r =>
-    (curFilter==='all' || r.console===curFilter) &&
-    (!q || r.title.toLowerCase().includes(q) || r.console.includes(q))
+  const pool = curFilter === 'hidden' ? allROMs.filter(r => r.hidden) : shownROMs();
+  let list = pool.filter(r =>
+    (curFilter==='all' || curFilter==='hidden' ||
+     (curFilter==='fav'    && r.favorite) ||
+     (curFilter==='recent' && r.lastPlayed) ||
+     r.console===curFilter) &&
+    (!q || r.title.toLowerCase().includes(q) || (r.fileTitle||'').toLowerCase().includes(q)
+        || r.console.includes(q))
   );
-  if (sort==='name')    list.sort((a,b)=>a.title.localeCompare(b.title));
-  if (sort==='console') list.sort((a,b)=>a.console.localeCompare(b.console)||a.title.localeCompare(b.title));
-  if (sort==='newest')  list.sort((a,b)=>(b.added||'').localeCompare(a.added||''));
-  renderGrid(list, _cachedHasKey);
-  document.getElementById('count-lbl').textContent = `${list.length} of ${allROMs.length}`;
+  if (curFilter==='recent')  list.sort(byRecent);
+  else if (sort==='name')    list.sort((a,b)=>a.title.localeCompare(b.title));
+  else if (sort==='console') list.sort((a,b)=>a.console.localeCompare(b.console)||a.title.localeCompare(b.title));
+  else if (sort==='newest')  list.sort((a,b)=>(b.added||'').localeCompare(a.added||''));
+  else if (sort==='recent')  list.sort((a,b)=>byRecent(a,b)||a.title.localeCompare(b.title));
+  else if (sort==='played')  list.sort((a,b)=>(b.seconds-a.seconds)||(b.plays-a.plays)||a.title.localeCompare(b.title));
+
+  // "Continue playing" only on the plain library view — anywhere else it
+  // would just repeat the first row of what's already there.
+  const recent = (curFilter==='all' && !q && sort!=='recent')
+    ? shownROMs().filter(r => r.lastPlayed).sort(byRecent).slice(0, CONTINUE_ROW)
+    : [];
+
+  const [title, sub] = VIEW_TEXT[curFilter]
+    || [CON_NAME[curFilter] || _otherEmuMeta.find(m=>m.console_key===curFilter)?.name || 'Library',
+        `${list.length} game${list.length===1?'':'s'}`];
+  document.getElementById('sec-title').textContent = title;
+  document.getElementById('sec-sub').textContent   = sub;
+
+  renderGrid(list, _cachedHasKey, {
+    recent, animate: opts.animate !== false,
+    showPlayed: curFilter==='recent' || sort==='recent' || sort==='played',
+  });
+  document.getElementById('count-lbl').textContent =
+    `${list.length} of ${curFilter==='hidden' ? allROMs.filter(r=>r.hidden).length : shownROMs().length}`;
+}
+
+// Re-render after a data change without replaying the entrance animation,
+// losing the scroll position, or dropping keyboard focus.
+function rerender() {
+  const grid = document.getElementById('grid');
+  const top  = grid.scrollTop;
+  const kbId = kbFocusedId();
+  applyFilters({ animate: false });
+  grid.scrollTop = top;
+  if (kbId) kbFocusId(kbId, false);
 }
 
 function updateBadges() {
-  const totals = { all: allROMs.length };
-  for (const r of allROMs) totals[r.console] = (totals[r.console]||0)+1;
+  const shown  = shownROMs();
+  const totals = { all: shown.length };
+  for (const r of shown) totals[r.console] = (totals[r.console]||0)+1;
   // Known consoles
   ['all', ...CONSOLES].forEach(c => {
     const el = document.getElementById(`b-${c}`);
@@ -1276,7 +1616,77 @@ function updateBadges() {
     const el = document.getElementById(`b-${console_key}`);
     if (el) el.textContent = totals[console_key]||0;
   });
-  document.getElementById('hdr-count').textContent = `${allROMs.length} games`;
+  // Favorites, Recently played and Hidden only appear once they have games in
+  // them — and if the view you're on empties out, fall back to the library.
+  const views = {
+    fav:    shown.filter(r => r.favorite).length,
+    recent: shown.filter(r => r.lastPlayed).length,
+    hidden: allROMs.length - shown.length,
+  };
+  for (const [view, n] of Object.entries(views)) {
+    document.getElementById(`b-${view}`).textContent = n;
+    const btn = document.querySelector(`.f-btn[data-console="${view}"]`);
+    btn.hidden = n === 0;
+    if (btn.hidden && curFilter === view) setFilter('all', document.querySelector('.f-btn[data-console="all"]'));
+  }
+  document.getElementById('hdr-count').textContent = `${shown.length} games`;
+}
+
+// Fold an updated per-game record from the backend into the library.
+function updateRomMeta(id, meta) {
+  const rom = allROMs.find(r => r.id === id);
+  if (!rom || !meta) return null;
+  Object.assign(rom, meta);
+  rom.title = meta.customTitle || rom.fileTitle;
+  return rom;
+}
+
+// Flip locally first, then write. Waiting for the backend before flipping let
+// a quick double-press (F, or Y on a controller) read the same stale state
+// twice and send "favorite: true" both times. Writes for a game are chained so
+// they also land in the order they were made.
+const _favWrites = {};
+function toggleFavorite(id) {
+  const rom = allROMs.find(r => r.id === id);
+  if (!rom) return;
+  const want = rom.favorite = !rom.favorite;
+  paintFavorite(rom);
+  _favWrites[id] = (_favWrites[id] || Promise.resolve()).then(async () => {
+    const res = await pyAPI('set_game_meta', id, { favorite: want });
+    if (res?.ok) return;
+    toast('ERROR', res?.error || 'Could not save', true);
+    if (rom.favorite === want) { rom.favorite = !want; paintFavorite(rom); }
+  });
+}
+
+function paintFavorite(rom) {
+  updateBadges();                 // first: may leave Favorites if it just emptied
+  // Only the favourites view changes shape; elsewhere flip the heart in place.
+  if (curFilter === 'fav') rerender();
+  else document.querySelectorAll(`.card[data-id="${rom.id}"]`)
+         .forEach(c => c.classList.toggle('is-fav', rom.favorite));
+  if (curROM && curROM.id === rom.id) syncModalFav();
+}
+
+function fmtPlaytime(s) {
+  if (!s) return '—';
+  if (s < 60) return 'Under a minute';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m} min`;
+}
+
+function fmtAgo(ts) {
+  if (!ts) return 'Never';
+  const now = new Date(), then = new Date(ts * 1000);
+  const secs = (now - then) / 1000;
+  if (secs < 60)   return 'Just now';
+  if (secs < 3600) return `${Math.floor(secs/60)} min ago`;
+  const days = Math.round((new Date(now.toDateString()) - new Date(then.toDateString())) / 864e5);
+  if (days === 0) return `${Math.floor(secs/3600)} hr ago`;
+  if (days === 1) return 'Yesterday';
+  if (days < 7)   return `${days} days ago`;
+  return then.toLocaleDateString(undefined,
+    { month:'short', day:'numeric', year: then.getFullYear()===now.getFullYear() ? undefined : 'numeric' });
 }
 
 async function updateSidebarEmulators() {
@@ -1316,58 +1726,76 @@ function setFilter(f, btn) {
 }
 
 // ════════════════════════════════════════════ GRID
-function renderGrid(list, hasApiKey) {
+const ICON_HEART =
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+
+function renderGrid(list, hasApiKey, opts = {}) {
   const grid = document.getElementById('grid');
+  const recent = opts.recent || [];
   if (!list.length) {
     grid.innerHTML = `<div class="empty"><span class="e-icon">🎮</span><p>No games found</p><small>Open ⚙ Settings to configure your ROM folders</small></div>`;
     return;
   }
-  grid.innerHTML = list.map((r,i) => {
-    // For known consoles use the pre-defined CSS class; for custom "other" entries
-    // fall back to a generic purple style so the card always renders cleanly.
-    const isOther   = r.isOther || r.console.startsWith('other_');
-    const barClass  = isOther ? '' : `bar-${r.console}`;
-    const tagClass  = isOther ? '' : `tag-${r.console}`;
-    const artClass  = isOther ? '' : `art-${r.console}`;
-    const barStyle  = isOther ? 'style="background:var(--a3)"' : '';
-    const tagStyle  = isOther ? 'style="background:rgba(124,58,237,.15);color:#c084fc"' : '';
-    const artStyle  = isOther ? 'style="background:linear-gradient(160deg,#0d001a,#1a0b30)"' : '';
-
-    const cl     = CON_LABEL[r.console] || (isOther
-      ? (_otherEmuMeta.find(m=>m.console_key===r.console)?.name || 'OTHER').toUpperCase()
-      : r.console.toUpperCase());
-    const known  = artCache[r.title] !== undefined;   // resolved already (hit or miss)
-    const delay  = Math.min(i*38,480);
-
-    let coverInner;
-    if (hasApiKey && !known) {
-      coverInner = `
-        <div class="cover-spin"><div class="spin"></div></div>
-        <div class="cover-ph"><span class="ph-icon">${CON_ICON[r.console]||'🎮'}</span><span class="ph-name">${esc(r.title)}</span></div>`;
-    } else {
-      coverInner = `
-        <div class="cover-ph"><span class="ph-icon">${CON_ICON[r.console]||'🎮'}</span><span class="ph-name">${esc(r.title)}</span></div>`;
-    }
-    return `
-      <div class="card" data-id="${r.id}" onclick="openLaunch('${r.id}')" style="animation-delay:${delay}ms">
-        <div class="card-bar ${barClass}" ${barStyle}></div>
-        <div class="cover ${artClass}" ${artStyle}>${coverInner}
-          <div class="play-ov"><div class="play-circle">&#9654;</div></div>
-        </div>
-        <div class="card-info">
-          <div class="card-title">${esc(r.title)}</div>
-          <span class="card-tag ${tagClass}" ${tagStyle}>${cl}</span>
-        </div>
-      </div>`;
-  }).join('');
+  const html = [];
+  if (recent.length) {
+    html.push(`<div class="grid-head">Continue playing</div>`);
+    html.push(recent.map((r,i) => cardHTML(r, i, hasApiKey, true, opts.animate)).join(''));
+    html.push(`<div class="grid-head">All games <small>${list.length}</small></div>`);
+  }
+  html.push(list.map((r,i) => cardHTML(r, i + recent.length, hasApiKey, opts.showPlayed, opts.animate)).join(''));
+  grid.innerHTML = html.join('');
 
   // Paint anything already resolved through applyArt rather than inlining an
   // <img src> here. One code path means one set of fallbacks — the old inline
   // version had none, so a re-render (any filter change) showed a broken image
   // whenever the cached URL failed to load.
-  for (const r of list) {
+  for (const r of new Set([...recent, ...list])) {
     if (artCache[r.title] !== undefined) applyArt(r.id, artCache[r.title], artLocal[r.title]);
   }
+}
+
+function cardHTML(r, i, hasApiKey, showPlayed, animate = true) {
+  // For known consoles use the pre-defined CSS class; for custom "other" entries
+  // fall back to a generic purple style so the card always renders cleanly.
+  const isOther   = r.isOther || r.console.startsWith('other_');
+  const barClass  = isOther ? '' : `bar-${r.console}`;
+  const tagClass  = isOther ? '' : `tag-${r.console}`;
+  const artClass  = isOther ? '' : `art-${r.console}`;
+  const barStyle  = isOther ? 'style="background:var(--a3)"' : '';
+  const tagStyle  = isOther ? 'style="background:rgba(124,58,237,.15);color:#c084fc"' : '';
+  const artStyle  = isOther ? 'style="background:linear-gradient(160deg,#0d001a,#1a0b30)"' : '';
+
+  const cl     = CON_LABEL[r.console] || (isOther
+    ? (_otherEmuMeta.find(m=>m.console_key===r.console)?.name || 'OTHER').toUpperCase()
+    : r.console.toUpperCase());
+  const known  = artCache[r.title] !== undefined;   // resolved already (hit or miss)
+  // Data-driven re-renders (a favourite, a finished session) shouldn't replay
+  // the entrance animation across the whole grid.
+  const anim   = animate ? `style="animation-delay:${Math.min(i*38,480)}ms"`
+                         : `style="animation:none;opacity:1"`;
+  const cls    = ['card', r.favorite && 'is-fav', r.hidden && 'is-hidden'].filter(Boolean).join(' ');
+  const sub    = showPlayed && r.lastPlayed
+    ? `<div class="card-sub">${fmtAgo(r.lastPlayed)}${r.seconds ? ' · ' + fmtPlaytime(r.seconds) : ''}</div>`
+    : '';
+
+  const ph = `<div class="cover-ph"><span class="ph-icon">${CON_ICON[r.console]||'🎮'}</span><span class="ph-name">${esc(r.title)}</span></div>`;
+  const coverInner = known ? ph : `<div class="cover-spin"><div class="spin"></div></div>${ph}`;
+  return `
+    <div class="${cls}" data-id="${r.id}" onclick="openLaunch('${r.id}')" ${anim}>
+      <div class="card-bar ${barClass}" ${barStyle}></div>
+      <div class="cover ${artClass}" ${artStyle}>${coverInner}
+        ${r.hidden ? '<span class="hidden-pill">Hidden</span>' : ''}
+        <button class="fav-btn" onclick="event.stopPropagation();toggleFavorite('${r.id}')"
+                title="Favorite (F)" aria-label="Favorite">${ICON_HEART}</button>
+        <div class="play-ov"><div class="play-circle">&#9654;</div></div>
+      </div>
+      <div class="card-info">
+        <div class="card-title">${esc(r.title)}</div>
+        ${sub}
+        <span class="card-tag ${tagClass}" ${tagStyle}>${cl}</span>
+      </div>
+    </div>`;
 }
 
 // ════════════════════════════════════════════ LAUNCH MODAL
@@ -1390,7 +1818,7 @@ function setModalCover(cw, rom, local, url) {
   img.src = local || url;
 }
 
-function openLaunch(id) {
+function openLaunch(id, viaNav = false) {
   const rom = allROMs.find(r=>r.id===id);
   if (!rom) return;
   curROM = rom;
@@ -1401,25 +1829,238 @@ function openLaunch(id) {
   document.getElementById('modal-con-tag').className   = `tag-${rom.console}`;
   document.getElementById('modal-title').textContent   = rom.title;
   document.getElementById('modal-file').textContent    = rom.filename;
-  document.getElementById('modal-info').innerHTML = `
-    <div class="ii"><label>Console</label><div class="v">${cl}</div></div>
-    <div class="ii"><label>Added</label><div class="v">${rom.added||'—'}</div></div>
-    <div class="ii" style="grid-column:1/-1"><label>Path</label><div class="v">${esc(rom.romPath)}</div></div>`;
+  renderModalInfo(rom);
   document.getElementById('modal-cmd').innerHTML = `<span class="cl">ROM path</span>${esc(rom.romPath)}`;
   const lb = document.getElementById('btn-launch');
   lb.disabled = false; lb.innerHTML = '&#9654;&nbsp; Launch game';
+  syncModalFav();
+  modalFocus(viaNav ? 0 : -1);
   document.getElementById('launch-bg').classList.add('open');
 }
+
+function renderModalInfo(rom) {
+  const cl = CON_LABEL[rom.console]||rom.console.toUpperCase();
+  const plays = rom.plays ? ` <span style="color:var(--muted);font-weight:500">· ${rom.plays} launch${rom.plays===1?'':'es'}</span>` : '';
+  document.getElementById('modal-info').innerHTML = `
+    <div class="ii"><label>Console</label><div class="v">${cl}</div></div>
+    <div class="ii"><label>Added</label><div class="v">${rom.added||'—'}</div></div>
+    <div class="ii"><label>Last played</label><div class="v">${fmtAgo(rom.lastPlayed)}</div></div>
+    <div class="ii"><label>Play time</label><div class="v">${fmtPlaytime(rom.seconds)}${plays}</div></div>`;
+}
+
+function syncModalFav() {
+  const b = document.getElementById('btn-modal-fav');
+  const on = !!curROM?.favorite;
+  b.innerHTML = ICON_HEART;
+  b.classList.toggle('on', on);
+  b.title = on ? 'Remove from favorites (F)' : 'Add to favorites (F)';
+}
+
 function closeLaunch()           { document.getElementById('launch-bg').classList.remove('open'); curROM=null; }
 function closeLaunchBg(e)        { if (e.target===document.getElementById('launch-bg')) closeLaunch(); }
 
 async function launchGame() {
   if (!curROM) return;
   const btn = document.getElementById('btn-launch');
+  if (btn.disabled) return;           // Enter / controller A can fire again mid-launch
   btn.disabled=true; btn.textContent='LAUNCHING…';
-  const res = await pyAPI('launch_game', curROM.console, curROM.romPath);
-  if (res?.ok) { toast('LAUNCHED', curROM.title); closeLaunch(); }
+  const rom = curROM;
+  const res = await pyAPI('launch_game', rom.console, rom.romPath);
+  if (res?.ok) {
+    toast('LAUNCHED', rom.title);
+    updateRomMeta(rom.id, res.meta);
+    closeLaunch();
+    updateBadges();
+    rerender();
+  }
   else { btn.disabled=false; btn.innerHTML='&#9654;&nbsp; Launch game'; toast('ERROR', res?.error||'Unknown error', true); }
+}
+
+// Called by the backend when a tracked emulator exits.
+window.__onGameExited = (id, meta) => {
+  const rom = updateRomMeta(id, meta);
+  if (!rom) return;
+  if (curROM && curROM.id === id) renderModalInfo(rom);
+  rerender();
+  if (meta?.seconds) toast('SESSION SAVED', `${rom.title} — ${fmtPlaytime(meta.seconds)} total`);
+};
+
+// ════════════════════════════════════════════ GAME OPTIONS
+// Everything here is staged and only written on Save, including the cover.
+let optsROM = null, optsSettings = null;
+let optsArt = { mode: 'keep' };     // 'keep' | 'file' (path, preview) | 'reset'
+
+function consoleEmulator(rom) {
+  const s = optsSettings || {};
+  const e = (s.emulators || {})[rom.console]
+         || (s.other_emulators || []).find(o => o.console_key === rom.console) || {};
+  return { exe: e.exe || '', flag: e.args_flag || '', name: e.name || 'the console’s emulator' };
+}
+
+async function openOpts(id) {
+  const rom = allROMs.find(r => r.id === id);
+  if (!rom) return;
+  optsROM = rom;
+  optsArt = { mode: 'keep' };
+  optsSettings = await pyAPI('get_settings');
+  const emu = consoleEmulator(rom);
+  const conName = CON_NAME[rom.console] || _otherEmuMeta.find(m => m.console_key === rom.console)?.name || rom.console;
+
+  document.getElementById('opts-sub').textContent = `${conName} · ${rom.filename}`;
+  const t = document.getElementById('opt-title');
+  t.value = rom.customTitle || '';
+  t.placeholder = rom.fileTitle;
+  document.getElementById('opt-title-hint').textContent =
+    `Leave blank to use the name from the file: “${rom.fileTitle}”. Renaming also looks up cover art under the new name.`;
+  document.getElementById('opt-hidden').checked = !!rom.hidden;
+
+  const exe = document.getElementById('opt-exe');
+  exe.value = rom.launch?.exe || '';
+  exe.placeholder = emu.exe || 'No emulator set for this console';
+  document.getElementById('opt-exe-hint').textContent = emu.exe
+    ? `Leave blank to use ${emu.name}, the ${conName} default.`
+    : `No emulator is set for ${conName} — choose one here, or in ⚙ Settings.`;
+  const args = document.getElementById('opt-args');
+  args.value = rom.launch?.args || '';
+  args.placeholder = emu.flag ? `${emu.flag} {rom}` : '{rom}';
+
+  renderOptArt();
+  renderOptPreview();
+  document.getElementById('btn-opts-save').disabled = false;
+  document.getElementById('opts-bg').classList.add('open');
+}
+function closeOpts()    { document.getElementById('opts-bg').classList.remove('open'); optsROM = null; }
+function closeOptsBg(e) { if (e.target === document.getElementById('opts-bg')) closeOpts(); }
+function useFileTitle() { document.getElementById('opt-title').value = ''; }
+
+function renderOptArt() {
+  const rom = optsROM, prev = document.getElementById('opt-art-preview');
+  const status = document.getElementById('opt-art-status');
+  const custom = !!artCustom[rom.title];
+  const icon = `<span>${CON_ICON[rom.console] || '🎮'}</span>`;
+  const show = src => {
+    const img = document.createElement('img');
+    img.alt = ''; img.onerror = () => { prev.innerHTML = icon; };
+    prev.innerHTML = ''; prev.appendChild(img); img.src = src;
+  };
+  if (optsArt.mode === 'file') {
+    show(optsArt.preview);
+    status.textContent = `New image: ${optsArt.path.split(/[\\/]/).pop()} — applied when you save.`;
+  } else if (optsArt.mode === 'reset') {
+    prev.innerHTML = icon;
+    status.textContent = 'Will switch back to automatic artwork when you save.';
+  } else {
+    const src = usableLocalArt(artLocal[rom.title]) || artCache[rom.title];
+    src ? show(src) : (prev.innerHTML = icon);
+    status.textContent = custom ? 'Using your own image.'
+      : src ? 'Automatic — from SteamGridDB.'
+      : 'No cover found, so the console icon is shown. You can use your own image instead.';
+  }
+  document.getElementById('opt-art-reset').disabled =
+    !(optsArt.mode === 'file' || (optsArt.mode === 'keep' && custom));
+}
+
+async function chooseOwnArt() {
+  const res = await pyAPI('browse_image');
+  if (!res?.path) return;
+  optsArt = { mode: 'file', path: res.path, preview: res.preview };
+  renderOptArt();
+}
+
+function stageArtReset() {
+  // Undoing a just-picked file goes back to whatever was there before.
+  optsArt = { mode: optsArt.mode === 'file' && !artCustom[optsROM.title] ? 'keep' : 'reset' };
+  renderOptArt();
+}
+
+// Mirrors _split_args / _build_argv in main.py closely enough to preview.
+function splitArgs(s) {
+  return (String(s || '').match(/"[^"]*"|'[^']*'|\S+/g) || [])
+    .map(t => /^(["']).*\1$/.test(t) ? t.slice(1, -1) : t).filter(Boolean);
+}
+function renderOptPreview() {
+  const rom = optsROM;
+  if (!rom) return;
+  const emu  = consoleEmulator(rom);
+  const exe  = document.getElementById('opt-exe').value.trim() || emu.exe;
+  const args = document.getElementById('opt-args').value.trim();
+  let argv;
+  if (args) {
+    const toks = splitArgs(args);
+    argv = toks.some(t => t.includes('{rom}'))
+      ? toks.map(t => t.replace('{rom}', rom.romPath)) : [...toks, rom.romPath];
+  } else {
+    argv = [...splitArgs(emu.flag), rom.romPath];
+  }
+  const q = t => /\s/.test(t) ? `"${t}"` : t;
+  document.getElementById('opt-preview').innerHTML = exe
+    ? `<span class="cl">Command</span>${esc([exe, ...argv].map(q).join(' '))}`
+    : `<span class="cl">Command</span>No emulator set yet.`;
+}
+
+async function browseOptExe() {
+  const el = document.getElementById('opt-exe');
+  const res = await pyAPI('browse_exe', el.value || el.placeholder);
+  if (res) { el.value = res; renderOptPreview(); }
+}
+
+async function saveOpts() {
+  const rom = optsROM;
+  if (!rom) return;
+  const btn = document.getElementById('btn-opts-save');
+  btn.disabled = true;
+  const oldTitle = rom.title;
+  const res = await pyAPI('set_game_meta', rom.id, {
+    title:  document.getElementById('opt-title').value,
+    hidden: document.getElementById('opt-hidden').checked,
+    launch: { exe:  document.getElementById('opt-exe').value,
+              args: document.getElementById('opt-args').value },
+  });
+  if (!res?.ok) { btn.disabled = false; toast('ERROR', res?.error || 'Could not save', true); return; }
+  updateRomMeta(rom.id, res.meta);
+  const title = rom.title, refresh = new Set([title]);
+
+  // Art is keyed by title, so a rename would leave a chosen image behind
+  // unless it's carried over — but only if no other copy still uses the name.
+  if (title !== oldTitle && artCustom[oldTitle]
+      && !allROMs.some(r => r.id !== rom.id && r.title === oldTitle)) {
+    await pyAPI('rename_art', oldTitle, title);
+    refresh.add(oldTitle);
+  }
+  if (optsArt.mode === 'file') {
+    const r = await pyAPI('set_custom_art_file', title, optsArt.path);
+    if (!r?.ok) toast('COVER NOT SAVED', r?.error || 'Could not use that image', true);
+  } else if (optsArt.mode === 'reset') {
+    await pyAPI('reset_art', title);
+  }
+  for (const t of refresh) { delete artCache[t]; delete artLocal[t]; delete artCustom[t]; }
+  await fetchArtBatch([...refresh]);
+
+  closeOpts();
+  updateBadges();                 // may leave Hidden if it just emptied
+  rerender();
+  if (curROM && curROM.id === rom.id) {
+    document.getElementById('modal-title').textContent = rom.title;
+    setModalCover(document.getElementById('modal-cover'), rom,
+                  usableLocalArt(artLocal[rom.title]), artCache[rom.title]);
+  }
+  toast('SAVED', rom.hidden ? `${rom.title} is now hidden` : rom.title);
+}
+
+// ════════════════════════════════════════════ UPDATES
+let _update = null;
+async function checkForUpdate() {
+  const r = await pyAPI('check_for_update');
+  if (!r?.ok || !r.available) return;
+  _update = r;
+  document.getElementById('tb-update-text').textContent = `Update available · ${r.version}`;
+  document.getElementById('tb-update').hidden = false;
+}
+function openUpdate() { if (_update) pyAPI('open_url', _update.url); }
+async function dismissUpdate() {
+  if (!_update) return;
+  await pyAPI('dismiss_update', _update.version);
+  document.getElementById('tb-update').hidden = true;
 }
 
 // ════════════════════════════════════════════ SETTINGS MODAL
@@ -1437,7 +2078,7 @@ async function openSettings() {
   switchTab('tab-emus');
 }
 async function openSettingsToTab(tab) { await openSettings(); switchTab(tab); }
-function closeSettings()       { document.getElementById('settings-bg').classList.remove('open'); }
+function closeSettings()       { document.getElementById('settings-bg').classList.remove('open'); stopPadTest(); }
 function closeSettingsBg(e)    { if (e.target===document.getElementById('settings-bg')) closeSettings(); }
 
 document.querySelectorAll('.stab').forEach(btn => {
@@ -1447,6 +2088,216 @@ document.querySelectorAll('.stab').forEach(btn => {
 function switchTab(id) {
   document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('active', b.dataset.tab===id));
   document.querySelectorAll('.spanel').forEach(p=>p.classList.toggle('active', p.id===id));
+  id === 'tab-pads' ? startPadTest() : stopPadTest();
+}
+
+// ── Controllers Tab (test screen) ───────────
+// Polls the backend's live snapshot while the tab is open. The DOM for each
+// controller is built once and then only its lit buttons / stick positions
+// change, so 20 updates a second stay cheap.
+let padTestGen = 0, padTestKey = null;
+
+function stopPadTest() { padTestGen++; }
+
+async function startPadTest() {
+  const gen = ++padTestGen;
+  padTestKey = null;
+  const st = await pyAPI('controller_status') || {};
+  const s = document.getElementById('pad-status');
+  if (st.backend === 'sdl') {
+    s.className = 'pad-status' + (st.error ? ' warn' : '');
+    s.innerHTML = `<span class="dot"></span>` + esc(st.error ||
+      `SDL ${st.version} · ${Number(st.mappings||0).toLocaleString()} controller models in the database`);
+  } else {
+    s.className = 'pad-status warn';
+    s.innerHTML = `<span class="dot"></span>` + esc((st.error || 'SDL controller support is unavailable.')
+      + ' Falling back to the browser’s controller support, which recognises fewer controllers.');
+  }
+  const tick = async () => {
+    if (gen !== padTestGen) return;
+    renderPadTest(await pyAPI('controller_state') || []);
+    if (gen === padTestGen) setTimeout(tick, 50);
+  };
+  tick();
+}
+
+// Face-button labels and positions differ by family. SDL reports Nintendo's
+// buttons by their printed label, so on those A sits on the right, not the bottom.
+// Positions: n/w/e/s around the face-button cluster.
+function padLayout(type) {
+  const t = type || '';
+  if (t.startsWith('PlayStation')) return {
+    face: { y:['△','n'], x:['□','w'], b:['○','e'], a:['✕','s'] },
+    sh: ['L1','R1','L2','R2'], back: t.endsWith('5') ? 'Create' : 'Share', start: 'Options' };
+  if (t.startsWith('Switch') || t.startsWith('Joy-Con')) return {
+    face: { x:['X','n'], y:['Y','w'], a:['A','e'], b:['B','s'] },
+    sh: ['L','R','ZL','ZR'], back: '−', start: '+' };
+  return {
+    face: { y:['Y','n'], x:['X','w'], b:['B','e'], a:['A','s'] },
+    sh: ['LB','RB','LT','RT'], back: 'View', start: 'Menu' };
+}
+
+// What each input does in EmuHub. A row lights while any of its inputs is held.
+const PAD_ACTIONS = [
+  ['move',  'Move',                   ['up','down','left','right','stick']],
+  ['open',  'Open game, then launch', ['a','start']],
+  ['back',  'Go back',                ['b','back']],
+  ['fav',   'Favorite',               ['y']],
+  ['view',  'Switch view or console', ['lb','rb']],
+];
+
+// One generic controller drawn in SVG. Xbox-style layout (left stick high,
+// D-pad low) since that's the most common shape; labels follow the real pad.
+function universalPadSVG(p) {
+  const L = padLayout(p.type);
+  const FACE = { n:[392,104], w:[366,130], e:[418,130], s:[392,156] };
+  const face = Object.entries(L.face).map(([b, [label, pos]]) => {
+    const [x, y] = FACE[pos];
+    return `<g class="uc-btn" data-b="${b}"><circle cx="${x}" cy="${y}" r="13"/>
+              <text x="${x}" y="${y + 0.5}">${label}</text></g>`;
+  }).join('');
+  const dpad = [['up',189,152,0], ['right',211,174,90], ['down',189,196,180], ['left',167,174,270]]
+    .map(([b, x, y, r]) => `<g class="uc-btn" data-b="${b}">
+        <rect x="${x-10}" y="${y-11}" width="20" height="22" rx="4"/>
+        <path d="M${x-4},${y+3} L${x},${y-3} L${x+4},${y+3}" transform="rotate(${r} ${x} ${y})"/></g>`).join('');
+  const stick = (s, x, y) => `
+    <g class="uc-stick" data-s="${s}">
+      <circle class="uc-well" cx="${x}" cy="${y}" r="27"/>
+      <circle class="uc-knob" cx="${x}" cy="${y}" r="17"/>
+    </g>`;
+  const shoulder = (b, a, x, label, tlabel) => `
+    <g class="uc-trig"><rect class="uc-trig-bg" x="${x}" y="10" width="86" height="14" rx="7"/>
+      <rect class="uc-trig-fill" data-a="${a}" x="${x}" y="10" width="0" height="14" rx="7"/>
+      <text class="uc-small" x="${x + 43}" y="17.5">${tlabel}</text></g>
+    <g class="uc-btn" data-b="${b}"><rect x="${x}" y="32" width="86" height="20" rx="10"/>
+      <text x="${x + 43}" y="42.5">${label}</text></g>`;
+  return `
+    <svg class="uc" viewBox="0 0 520 290" role="img" aria-label="Controller input preview">
+      <path class="uc-body" d="M150,58 C100,58 66,74 52,120 C36,176 28,238 50,266 C72,292 110,280 132,246
+        C150,218 170,206 205,206 L315,206 C350,206 370,218 388,246 C410,280 448,292 470,266
+        C492,238 484,176 468,120 C454,74 420,58 370,58 Z"/>
+      ${shoulder('lb', 'lt', 104, L.sh[0], L.sh[2])}
+      ${shoulder('rb', 'rt', 330, L.sh[1], L.sh[3])}
+      ${stick('l', 132, 128)}
+      ${dpad}
+      ${stick('r', 330, 178)}
+      ${face}
+      <g class="uc-btn uc-pill" data-b="back"><rect x="216" y="114" width="36" height="16" rx="8"/>
+        <text class="uc-small" x="234" y="138.5">${esc(L.back)}</text></g>
+      <g class="uc-btn uc-pill" data-b="start"><rect x="268" y="114" width="36" height="16" rx="8"/>
+        <text class="uc-small" x="286" y="138.5">${esc(L.start)}</text></g>
+      <g class="uc-btn" data-b="guide"><circle cx="260" cy="88" r="12"/></g>
+    </svg>`;
+}
+
+function padCardHTML(p) {
+  const chips = [
+    `<span class="pad-chip">${esc(p.type)}</span>`,
+    p.mapped ? `<span class="badge-ok">Recognized</span>` : `<span class="badge-warn">Basic layout</span>`,
+    p.battery ? `<span class="pad-chip">Battery: ${esc(p.battery)}</span>` : '',
+  ].join('');
+  const ids = `VID ${esc(p.vid)} · PID ${esc(p.pid)} · GUID ${esc(p.guid)}`;
+  const actions = PAD_ACTIONS.map(([k, label, inputs]) => {
+    const keys = inputs.filter(i => i !== 'stick').map(i =>
+      i === 'up' ? 'D-pad' : ['down','left','right'].includes(i) ? '' : padInputLabel(p, i)).filter(Boolean);
+    if (inputs.includes('stick')) keys.push('Left stick');
+    return `<div class="uc-act" data-act="${k}"><b>${esc(label)}</b><span>${esc(keys.join(' / '))}</span></div>`;
+  }).join('');
+  const raw = p.mapped ? '' : `
+    <div class="pad-raw">
+      <div class="pad-raw-row"><span>Buttons</span>${p.raw_buttons.map((_,i) => `<span class="pb" data-r="${i}">${i}</span>`).join('') || '—'}</div>
+      <div class="pad-raw-row"><span>Axes</span>${p.raw_axes.map((_,i) => `<span class="pad-axis" title="Axis ${i}"><i data-x="${i}"></i></span>`).join('') || '—'}</div>
+      <div class="pad-raw-row"><span>Hats</span>${p.raw_hats.map((_,i) => `<span class="pb wide" data-h="${i}">—</span>`).join('') || '—'}</div>
+    </div>
+    <div class="pad-note">This controller isn’t in the controller database, so EmuHub uses a basic layout:
+      the D-pad (hat) or first stick to move, button 0 as A, 1 as B, 2 as X, 3 as Y, 4/5 as the bumpers.
+      The controller above shows how EmuHub reads it. If that doesn’t match, report it with the ID above.</div>`;
+  return `
+    <div class="pad-card" data-pad="${p.uid}">
+      <div class="pad-head"><span class="pad-name">${esc(p.name)}</span>
+        <span class="pad-chip pad-paused">Paused — EmuHub is in the background</span>${chips}</div>
+      <div class="pad-id">${ids}</div>
+      <div class="uc-wrap">
+        ${universalPadSVG(p)}
+        <div class="uc-acts">${actions}</div>
+      </div>
+      ${raw}
+      ${p.rumble ? `<div class="pad-foot"><button class="btn-small" onclick="padRumble('${p.uid}')">Test rumble</button></div>` : ''}
+    </div>`;
+}
+
+// SDL hands out a new instance id each time it re-finds a controller (after
+// EmuHub regains focus), so cards are keyed by the hardware GUID instead —
+// numbered, in case two identical controllers are plugged in.
+let padLast = [];
+function padUids(pads) {
+  const n = {};
+  for (const p of pads) { n[p.guid] = (n[p.guid] || 0) + 1; p.uid = `${p.guid}#${n[p.guid]}`; }
+}
+function padRumble(uid) {
+  const p = padLast.find(x => x.uid === uid);
+  if (p && !p.paused) pyAPI('controller_rumble', p.id);
+}
+
+function padInputLabel(p, b) {
+  const L = padLayout(p.type);
+  if (L.face[b]) return L.face[b][0];
+  return { lb: L.sh[0], rb: L.sh[1], back: L.back, start: L.start }[b] || b;
+}
+
+// An unrecognised controller drives the drawing through the same basic
+// layout the backend navigates with, so what lights up is what EmuHub reads.
+function padView(p) {
+  if (p.mapped) return p;
+  const rb = p.raw_buttons, hat = p.raw_hats[0] || 0;
+  const ax = p.raw_axes;
+  return {
+    buttons: { a: rb[0], b: rb[1], x: rb[2], y: rb[3], lb: rb[4], rb: rb[5], back: rb[6], start: rb[7],
+               up: !!(hat & 1), right: !!(hat & 2), down: !!(hat & 4), left: !!(hat & 8) },
+    axes: { lx: ax[0] || 0, ly: ax[1] || 0, rx: ax[2] || 0, ry: ax[3] || 0, lt: 0, rt: 0 },
+  };
+}
+
+const HAT = { 0:'—', 1:'Up', 2:'Right', 3:'Up-Right', 4:'Down', 6:'Down-Right', 8:'Left', 9:'Up-Left', 12:'Down-Left' };
+
+function renderPadTest(pads) {
+  const list = document.getElementById('pad-list');
+  padUids(pads);
+  padLast = pads;
+  const key = pads.map(p => `${p.uid}:${p.mapped}:${p.battery}`).join('|');
+  if (key !== padTestKey) {
+    padTestKey = key;
+    list.innerHTML = pads.length ? pads.map(padCardHTML).join('') : `
+      <div class="pad-empty"><b>No controllers detected</b>
+        Plug one in or switch a wireless controller on — it shows up here straight away.
+        Bluetooth controllers need to be paired in Windows first.</div>`;
+  }
+  for (const p of pads) {
+    const card = list.querySelector(`[data-pad="${p.uid}"]`);
+    if (!card) continue;
+    card.classList.toggle('paused', !!p.paused);
+    const v = padView(p), b = v.buttons, a = v.axes;
+    card.querySelectorAll('.uc [data-b]').forEach(el => el.classList.toggle('on', !!b[el.dataset.b]));
+    card.querySelectorAll('.uc [data-a]').forEach(el => el.setAttribute('width', 86 * Math.max(0, Math.min(1, a[el.dataset.a] || 0))));
+    for (const [s, x, y, press] of [['l', a.lx, a.ly, 'ls'], ['r', a.rx, a.ry, 'rs']]) {
+      const st = card.querySelector(`.uc [data-s="${s}"]`);
+      st.querySelector('.uc-knob').setAttribute('transform', `translate(${(x||0)*12} ${(y||0)*12})`);
+      st.classList.toggle('on', !!b[press] || Math.hypot(x||0, y||0) > 0.55);
+    }
+    const stickMoved = Math.abs(a.lx||0) > 0.55 || Math.abs(a.ly||0) > 0.55;
+    for (const [k, , inputs] of PAD_ACTIONS) {
+      const on = inputs.some(i => i === 'stick' ? stickMoved : !!b[i]);
+      card.querySelector(`[data-act="${k}"]`).classList.toggle('on', on);
+    }
+    if (!p.mapped) {
+      card.querySelectorAll('[data-r]').forEach(el => el.classList.toggle('on', !!p.raw_buttons[+el.dataset.r]));
+      card.querySelectorAll('[data-x]').forEach(el => { el.style.left = `${50 + (p.raw_axes[+el.dataset.x]||0)*50}%`; });
+      card.querySelectorAll('[data-h]').forEach(el => {
+        const hv = p.raw_hats[+el.dataset.h] || 0;
+        el.textContent = HAT[hv] || hv; el.classList.toggle('on', hv !== 0);
+      });
+    }
+  }
 }
 
 // ── ROM Paths Tab ───────────────────────────
@@ -1923,14 +2774,332 @@ function toast(title, msg, isErr=false) {
   toastTmr = setTimeout(()=>t.classList.remove('show'), 4500);
 }
 
-// ════════════════════════════════════════════ KEYBOARD
-document.addEventListener('keydown', e => {
-  if (e.key==='Escape') {
-    if (document.getElementById('settings-bg').classList.contains('open')) closeSettings();
-    else closeLaunch();
+// ════════════════════════════════════════════ KEYBOARD & CONTROLLER
+const isOpen = id => document.getElementById(id).classList.contains('open');
+const kbCards     = () => [...document.querySelectorAll('#grid .card')];
+const kbCurrent   = () => document.querySelector('#grid .card.kb-focus');
+const kbFocusedId = () => kbCurrent()?.dataset.id || null;
+
+function kbFocus(card, scroll = true) {
+  document.querySelectorAll('#grid .card.kb-focus').forEach(c => c.classList.remove('kb-focus'));
+  sbFocus(null);
+  if (!card) return;
+  card.classList.add('kb-focus');
+  if (scroll) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ── Sidebar ─────────────────────────────────────
+// Directional input goes to the game grid or to the sidebar's filter list.
+// Left from the first card in a row steps into the sidebar, onto the current
+// filter; from there A/Enter applies a filter, Right or B goes back.
+let navZone = 'grid';
+let sbReturnId = null;              // the card to go back to when leaving the sidebar
+const sbButtons = () => [...document.querySelectorAll('#sidebar .f-btn')]
+  .filter(b => !b.hidden && b.style.display !== 'none');
+const sbCurrent = () => document.querySelector('#sidebar .f-btn.nav-focus');
+
+function sbFocus(btn) {
+  document.querySelectorAll('#sidebar .f-btn.nav-focus').forEach(b => b.classList.remove('nav-focus'));
+  if (!btn) { navZone = 'grid'; return; }
+  document.querySelectorAll('#grid .card.kb-focus').forEach(c => c.classList.remove('kb-focus'));
+  navZone = 'sidebar';
+  btn.classList.add('nav-focus');
+  btn.scrollIntoView({ block: 'nearest' });
+}
+function sbEnter() {
+  sbReturnId = kbFocusedId();
+  sbFocus(document.querySelector('#sidebar .f-btn.active') || sbButtons()[0]);
+}
+function sbLeave() {
+  const back = sbReturnId && document.querySelector(`#grid .card[data-id="${sbReturnId}"]`);
+  kbFocus(back || firstVisibleCard());
+}
+function sbMove(dir) {
+  if (dir === 'right') return sbLeave();
+  if (dir !== 'up' && dir !== 'down') return;
+  const btns = sbButtons();
+  const i = btns.indexOf(sbCurrent());
+  const next = btns[Math.max(0, Math.min(btns.length - 1, (i < 0 ? 0 : i) + (dir === 'down' ? 1 : -1)))];
+  if (next) sbFocus(next);
+}
+function sbSelect() {
+  const btn = sbCurrent();
+  if (!btn) return;
+  setFilter(btn.dataset.console, btn);
+  document.getElementById('grid').scrollTop = 0;
+  kbFocus(firstVisibleCard(), false);     // straight into the games it shows
+}
+
+// ── Shared by keyboard and controller, when no dialog is open ──
+function navDir(dir) { navZone === 'sidebar' ? sbMove(dir) : kbMove(dir); }
+function navAccept() {
+  if (navZone === 'sidebar') return sbSelect();
+  const cur = kbCurrent();
+  cur ? openLaunch(cur.dataset.id, true) : kbFocus(firstVisibleCard());
+}
+function navBack() { navZone === 'sidebar' ? sbLeave() : kbFocus(null); }
+
+// ── Game panel ──────────────────────────────────
+// Opened from the keyboard or a controller, a ring starts on "Launch game";
+// Left/Right move it across the buttons and A/Enter presses the one it's on.
+// Opened with the mouse there's no ring, and Enter/A simply launch.
+let modalIdx = -1;
+const modalBtns = () => [...document.querySelectorAll('#launch-modal .modal-btns button')];
+function modalFocus(i) {
+  const btns = modalBtns();
+  btns.forEach(b => b.classList.remove('nav-focus'));
+  if (i < 0) { modalIdx = -1; return; }
+  modalIdx = Math.max(0, Math.min(btns.length - 1, i));
+  btns[modalIdx].classList.add('nav-focus');
+}
+function modalMove(dir) {
+  if (dir === 'left' || dir === 'right') {
+    // Clamp at 0: modalFocus(-1) means "no ring", and Left on the first
+    // button must stay there, not hide the ring.
+    modalFocus(modalIdx < 0 ? 0 : Math.max(0, modalIdx + (dir === 'right' ? 1 : -1)));
   }
-  if ((e.key==='r'||e.key==='R') && !e.target.closest('input,select')) loadLibrary();
+}
+function modalAccept() {
+  if (modalIdx < 0) return launchGame();
+  modalBtns()[modalIdx].click();
+}
+function kbFocusId(id, scroll = true) {
+  kbFocus(document.querySelector(`#grid .card[data-id="${id}"]`), scroll);
+}
+function firstVisibleCard() {
+  const top = document.getElementById('grid').getBoundingClientRect().top;
+  return kbCards().find(c => c.getBoundingClientRect().bottom > top + 24) || null;
+}
+
+// Moves by position, not by a fixed column count: "Continue playing" can be a
+// short row, and stepping five cards down from it would land in the wrong spot.
+// offsetTop/offsetLeft ignore transforms, so the lifted focused card still
+// lines up with the rest of its row.
+function kbMove(dir) {
+  const cards = kbCards();
+  if (!cards.length) { if (dir === 'left') sbEnter(); return; }
+  const cur = kbCurrent();
+  if (!cur) { kbFocus(firstVisibleCard()); return; }
+  if (dir === 'left' && !cards.some(c =>
+        Math.abs(c.offsetTop - cur.offsetTop) <= 8 && c.offsetLeft < cur.offsetLeft)) {
+    sbEnter();                         // first card in its row: step into the sidebar
+    return;
+  }
+  let next = null;
+  if (dir === 'left' || dir === 'right') {
+    next = cards[cards.indexOf(cur) + (dir === 'right' ? 1 : -1)] || null;   // Right wraps rows
+  } else {
+    const y0 = cur.offsetTop, x0 = cur.offsetLeft + cur.offsetWidth / 2;
+    const tops = cards.map(c => c.offsetTop).filter(t => dir === 'down' ? t > y0 + 8 : t < y0 - 8);
+    if (tops.length) {
+      const row = dir === 'down' ? Math.min(...tops) : Math.max(...tops);
+      let best = Infinity;
+      for (const c of cards) {
+        if (Math.abs(c.offsetTop - row) > 8) continue;
+        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - x0);
+        if (d < best) { best = d; next = c; }
+      }
+    }
+  }
+  if (next) kbFocus(next);
+}
+
+function cycleFilter(step) {
+  const btns = [...document.querySelectorAll('#sidebar .f-btn')]
+    .filter(b => !b.hidden && b.style.display !== 'none');
+  const i = btns.findIndex(b => b.classList.contains('active'));
+  const next = btns[(i + step + btns.length) % btns.length];
+  setFilter(next.dataset.console, next);
+  next.scrollIntoView({ block: 'nearest' });
+  kbFocus(firstVisibleCard(), false);
+}
+
+document.addEventListener('keydown', e => {
+  const inField = e.target instanceof Element && e.target.closest('input,select,textarea');
+  if (e.key === 'Escape') {
+    if (isOpen('opts-bg'))          closeOpts();
+    else if (isOpen('settings-bg')) closeSettings();
+    else if (isOpen('launch-bg'))   closeLaunch();
+    else if (inField)               e.target.blur();
+    else                            navBack();
+    return;
+  }
+  if (inField) {
+    // Down or Enter in the search box drops straight into the results.
+    if (e.target.id === 'search' && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      e.preventDefault(); e.target.blur(); kbFocus(firstVisibleCard());
+    }
+    return;
+  }
+  if (isOpen('opts-bg') || isOpen('settings-bg') || isOpen('tutorial-bg')) return;
+  const dir = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down' }[e.key];
+  if (isOpen('launch-bg')) {
+    if (dir) { e.preventDefault(); modalMove(dir); }
+    else if (e.key === 'Enter') { e.preventDefault(); modalAccept(); }
+    else if (e.key === 'f' || e.key === 'F') toggleFavorite(curROM?.id);
+    return;
+  }
+  if (dir) { e.preventDefault(); navDir(dir); return; }
+  const cur = kbCurrent();
+  if (e.key === 'Enter' && (cur || navZone === 'sidebar')) { e.preventDefault(); navAccept(); }
+  else if (e.key === '/')                 { e.preventDefault(); document.getElementById('search').focus(); }
+  else if ((e.key === 'f' || e.key === 'F') && cur) toggleFavorite(cur.dataset.id);
+  else if (e.key === 'r' || e.key === 'R') loadLibrary();
 });
+
+// Moving the mouse hands control back from the keyboard, so two cards never
+// look selected at once. Compare coordinates: Chromium can fire mousemove
+// with an unmoved pointer while the grid scrolls underneath it.
+{
+  let lx = null, ly = null;
+  document.getElementById('grid').addEventListener('mousemove', e => {
+    // The first event only records where the pointer is — it can be one of
+    // those scroll-triggered events, and comparing it against "nowhere" read
+    // as a big move, which dropped the selection the first time it scrolled.
+    if (lx !== null && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3 && kbCurrent()) kbFocus(null);
+    lx = e.clientX; ly = e.clientY;
+  });
+}
+
+// ── Controllers ──────────────────────────────────
+// Input normally comes from SDL in the backend (see controller.py), which
+// recognises far more controllers than the browser does and puts them all in
+// one layout. If SDL couldn't load, the browser's Gamepad API is used instead.
+// Both sources end up in padDirection / padButton.
+//   D-pad or left stick  move        A / Start  open, launch
+//   B / Back             back        Y          favorite
+//   LB / RB              switch library view or console
+let padBackend = null;              // 'sdl' once the backend reports in
+const PAD_DELAY = 380, PAD_REPEAT = 120;
+const padHeld = { dir: null, src: null, timer: 0 };
+
+function padStop() {
+  clearTimeout(padHeld.timer);
+  padHeld.dir = padHeld.src = null;
+}
+
+function padDirection(dir, down, src) {
+  if (down) {
+    padStop();
+    padHeld.dir = dir; padHeld.src = src;
+    padAction('dir', dir);
+    // A held direction repeats after a pause, like a held arrow key.
+    const repeat = () => { padAction('dir', dir); padHeld.timer = setTimeout(repeat, PAD_REPEAT); };
+    padHeld.timer = setTimeout(repeat, PAD_DELAY);
+  } else if (padHeld.dir === dir && padHeld.src === src) {
+    padStop();
+  }
+}
+
+function padButton(btn, down) {
+  if (!down) return;
+  padAction({ start: 'a', back: 'b' }[btn] || btn);
+}
+
+window.__padEvent = evt => {
+  if (evt.type === 'backend') {
+    padBackend = evt.backend;
+    if (padBackend === 'sdl') stopBrowserPads();
+  } else if (evt.type === 'connected') {
+    // SDL re-reports every controller each time EmuHub regains focus; only
+    // announce ones that are new this session.
+    if (evt.first) toast('CONTROLLER CONNECTED', evt.mapped ? evt.name
+      : `${evt.name} — not recognized, so a basic layout is used. Check it in ⚙ Settings → Controllers.`, !evt.mapped);
+  } else if (evt.type === 'disconnected') {
+    toast('CONTROLLER DISCONNECTED', evt.name);
+    padStop();
+  } else if (evt.type === 'dir') {
+    padDirection(evt.dir, evt.down, `sdl:${evt.id}`);
+  } else if (evt.type === 'button') {
+    padButton(evt.button, evt.down);
+  }
+};
+
+// Controllers are only held while EmuHub has focus, so a running emulator
+// never has to share them. The page is where focus is actually known.
+function reportPadFocus() {
+  const active = document.hasFocus() && !document.hidden;
+  if (!active) padStop();
+  pyAPI('controller_active', active);
+}
+window.addEventListener('focus', reportPadFocus);
+window.addEventListener('blur',  reportPadFocus);
+document.addEventListener('visibilitychange', reportPadFocus);
+
+// Browser Gamepad API — fallback only. Unlike SDL it can't see a controller
+// until a button is pressed, and unknown pads get a raw, unlabeled layout.
+const GP = { raf: 0, prev: {}, dir: null };
+const GP_DEAD = 0.5;
+
+window.addEventListener('gamepadconnected', () => {
+  if (padBackend === 'sdl') return;
+  toast('CONTROLLER CONNECTED', 'D-pad to browse · A to open · B to go back · LB/RB to switch views');
+  if (!GP.raf) GP.raf = requestAnimationFrame(gpTick);
+});
+
+function stopBrowserPads() {
+  if (GP.raf) cancelAnimationFrame(GP.raf);
+  GP.raf = 0;
+  if (padHeld.src === 'browser') padStop();
+}
+
+function gpTick() {
+  GP.raf = 0;
+  if (padBackend === 'sdl') return;
+  const pads = (navigator.getGamepads ? [...navigator.getGamepads()] : []).filter(Boolean);
+  if (!pads.length) return;            // idle until the next gamepadconnected
+  if (document.hasFocus()) pads.forEach(gpRead);
+  else { GP.dir = null; GP.prev = {}; }
+  GP.raf = requestAnimationFrame(gpTick);
+}
+
+function gpRead(p) {
+  const btn = i => !!p.buttons[i]?.pressed;
+  const ax = p.axes[0] || 0, ay = p.axes[1] || 0;
+  const dir = btn(12) || ay < -GP_DEAD ? 'up'
+            : btn(13) || ay >  GP_DEAD ? 'down'
+            : btn(14) || ax < -GP_DEAD ? 'left'
+            : btn(15) || ax >  GP_DEAD ? 'right' : null;
+  if (dir !== GP.dir) {
+    if (GP.dir) padDirection(GP.dir, false, 'browser');
+    if (dir)    padDirection(dir, true, 'browser');
+    GP.dir = dir;
+  }
+  const prev = GP.prev[p.index] || [];
+  const now  = p.buttons.map(b => b.pressed);
+  const names = { 0: 'a', 1: 'b', 3: 'y', 4: 'lb', 5: 'rb', 8: 'back', 9: 'start' };
+  for (const [i, name] of Object.entries(names)) {
+    if (now[i] && !prev[i]) padButton(name, true);
+  }
+  GP.prev[p.index] = now;
+}
+
+function padAction(a, dir) {
+  // Never act while another window is in front — a button pressed in a
+  // running emulator must not also open a game here.
+  if (!document.hasFocus()) { padStop(); return; }
+  if (isOpen('settings-bg') && document.getElementById('tab-pads').classList.contains('active')) {
+    return;                            // the test screen: every press is just being tested
+  }
+  if (isOpen('opts-bg') || isOpen('settings-bg') || isOpen('tutorial-bg')) {
+    if (a === 'b') isOpen('opts-bg') ? closeOpts() : isOpen('settings-bg') && closeSettings();
+    return;
+  }
+  if (isOpen('launch-bg')) {
+    if (a === 'dir')    modalMove(dir);
+    else if (a === 'a') modalAccept();
+    else if (a === 'b') closeLaunch();
+    else if (a === 'y') toggleFavorite(curROM?.id);
+    return;
+  }
+  if (document.activeElement?.id === 'search') document.activeElement.blur();
+  const cur = kbCurrent();
+  if (a === 'dir')      navDir(dir);
+  else if (a === 'a')   navAccept();
+  else if (a === 'b')   navBack();
+  else if (a === 'y')   cur && toggleFavorite(cur.dataset.id);
+  else if (a === 'lb' || a === 'rb') cycleFilter(a === 'rb' ? 1 : -1);
+}
 
 // ════════════════════════════════════════════ SETTINGS BUTTON
 document.getElementById('btn-settings').addEventListener('click', openSettings);
@@ -2219,15 +3388,33 @@ async function tutSaveApiKey() {
 }
 
 // ════════════════════════════════════════════ BOOT
+// Several ready signals can reach boot (see the bottom of the script); the
+// library should only load once.
+let _booted = false;
 async function boot() {
+  if (_booted) return;
+  _booted = true;
   await pyAPI('start_watching');
   await migrateLegacyArtCache();
 
   const s = await pyAPI('get_settings');
   _cachedHasKey = s.has_api_key;
+  // The window may have reopened maximized from last time.
+  syncMaximizeBtn(!!(await pyAPI('is_maximized')));
+  pyAPI('get_version').then(v => {
+    if (v) document.getElementById('app-version').textContent = `EmuHub ${v}`;
+  });
+
+  // Controllers: SDL in the backend if it loaded, otherwise the browser
+  // fallback. Then say whether we have focus, so they're only held if so.
+  pyAPI('controller_status').then(st => {
+    if (st?.backend === 'sdl') { padBackend = 'sdl'; stopBrowserPads(); }
+  });
+  reportPadFocus();
 
   // Always load library first so games are cached
   await loadLibrary();
+  setTimeout(checkForUpdate, 2500);
 
   // Show onboarding tutorial on first run
   if (!s.onboarding_complete) {
@@ -2250,9 +3437,12 @@ async function boot() {
   }
 }
 
+// Boot once the Python bridge exists. Booting on 'load' alone could run against
+// the fallback stubs (an empty library) if the bridge wasn't injected yet.
 window.addEventListener('pywebviewready', boot);
-if (document.readyState==='complete') boot();
-else window.addEventListener('load', boot);
+if (window.pywebview?.api) boot();
+// Outside the app (a plain browser) the bridge never comes — boot on the stubs.
+window.addEventListener('load', () => setTimeout(() => { if (!window.pywebview) boot(); }, 1500));
 </script>
 </body>
 </html>
