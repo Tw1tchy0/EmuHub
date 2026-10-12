@@ -18,7 +18,7 @@ EmuHub is a single desktop application that brings every emulator you have into 
 
 | Library | Filtered by Console | Settings |
 |---|---|---|
-| ![Library](screenshots/library.png) | ![3DS Filter](screenshots/filter.png) | ![Settings](screenshots/settings.png) |
+| ![Library](screenshots/library.png) | ![Switch Filter](screenshots/filter.png) | ![Settings](screenshots/settings.png) |
 
 ---
 

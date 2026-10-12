@@ -122,14 +122,80 @@ if %errorlevel% NEQ 0 (
 :: Remove build folder — only needed during compilation
 if exist build\ rmdir /s /q build
 
+:: ── 7. Optional: Code signing ──────────────────────────────
+if defined SIGN_CERT (
+    echo.
+    echo  [Signing] Signing EmuHub.exe...
+    signtool sign /f "%SIGN_CERT%" /p "%SIGN_PASS%" /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\EmuHub.exe
+    if %errorlevel% NEQ 0 (
+        echo  [WARNING] Signing failed. Continuing without signature.
+    ) else (
+        echo  [OK] EmuHub.exe signed
+    )
+)
+
 echo.
 echo  ============================================
 echo   EmuHub.exe is ready at:
 echo   dist\EmuHub.exe
-echo.
-echo   Copy it anywhere — no install needed.
-echo   Double-click to launch.
 echo  ============================================
+echo.
+
+:: ── 8. Optional: Build installer ──────────────────────────
+echo  Build installer too? (requires Inno Setup 6)
+choice /C YN /M "  Build installer"
+if %errorlevel% NEQ 1 goto :skip_installer
+
+:: Find ISCC.exe
+set "ISCC="
+where ISCC.exe >nul 2>&1
+if %errorlevel% EQU 0 (
+    set "ISCC=ISCC.exe"
+) else if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+    set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
+    set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
+)
+
+if not defined ISCC (
+    echo.
+    echo  [ERROR] Inno Setup 6 not found.
+    echo  Install it from: https://jrsoftware.org/isdl.php
+    echo  Then re-run BUILD.bat.
+    goto :skip_installer
+)
+
+:: Parse version from version_info.txt
+set "APP_VER="
+for /f "tokens=2 delims='" %%V in ('findstr /C:"ProductVersion" version_info.txt') do set "APP_VER=%%V"
+if not defined APP_VER set "APP_VER=1.0.0"
+
+echo.
+echo  [4/4] Building installer (v%APP_VER%)...
+"%ISCC%" /DAppVersion=%APP_VER% installer\EmuHub.iss
+if %errorlevel% NEQ 0 (
+    echo  [ERROR] Installer build failed.
+    goto :skip_installer
+)
+
+:: Sign the installer too if certificate is available
+if defined SIGN_CERT (
+    echo  [Signing] Signing EmuHub_Setup.exe...
+    signtool sign /f "%SIGN_CERT%" /p "%SIGN_PASS%" /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\EmuHub_Setup.exe
+    if %errorlevel% NEQ 0 (
+        echo  [WARNING] Installer signing failed.
+    ) else (
+        echo  [OK] EmuHub_Setup.exe signed
+    )
+)
+
+echo.
+echo  ============================================
+echo   Installer ready at:
+echo   dist\EmuHub_Setup.exe
+echo  ============================================
+
+:skip_installer
 echo.
 echo  Press any key to open the output folder...
 pause >nul
