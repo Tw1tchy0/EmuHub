@@ -82,7 +82,7 @@ if %errorlevel% NEQ 0 (
 :: ── 4. pip dependencies ─────────────────────────────────────
 echo.
 echo  [1/3] Installing Python dependencies...
-pip install pywebview pyinstaller --quiet
+pip install pywebview pyinstaller PySDL2 pysdl2-dll --quiet
 if %errorlevel% NEQ 0 (
     echo  [ERROR] pip install failed. Check your internet connection.
     pause & exit /b 1

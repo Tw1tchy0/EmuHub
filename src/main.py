@@ -3,12 +3,22 @@ EmuHub — Unified Emulator Launcher
 Python + pywebview backend.
 """
 
-import sys, os, json, re, threading, subprocess, time, shutil
+import sys, os, json, re, threading, subprocess, time, shutil, shlex, webbrowser
 import ctypes, ctypes.wintypes, base64, hashlib, http.client
 import urllib.request, urllib.parse, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import webview
+
+try:
+    from controller import ControllerService
+except Exception:               # controller support is optional — never block startup
+    ControllerService = None
+
+# Keep in step with version_info.txt — that file stamps the exe, this one is
+# what the update check compares against the latest GitHub release.
+APP_VERSION = '1.3.0-beta'
+GITHUB_REPO = 'Tw1tchy0/EmuHub'
 
 # ══════════════════════════════════════════════════════
 # WINDOWS DPAPI — encrypt/decrypt tied to current user account
@@ -58,6 +68,11 @@ SETTINGS_BAK  = SETTINGS_DIR / 'settings.json.bak'
 # downloaded cover files themselves so repeat launches never touch the network.
 ART_INDEX_FILE = SETTINGS_DIR / 'art_cache.json'
 COVERS_DIR     = SETTINGS_DIR / 'covers'
+
+# Per-game data — favourites, play history, renames, launch overrides. Kept
+# apart from settings.json because it is written on every launch and exit,
+# and a bad write here should never be able to take the configuration with it.
+LIBRARY_FILE   = SETTINGS_DIR / 'library.json'
 
 # Seconds between ROM-folder change checks.
 WATCH_INTERVAL = 5
@@ -470,6 +485,7 @@ SGDB_HOST     = 'www.steamgriddb.com'
 ART_MISS_TTL  = 30 * 24 * 3600     # re-check "no art" titles after 30 days
 ART_MAX_BYTES = 8 * 1024 * 1024    # refuse absurdly large downloads
 ART_WORKERS   = 6                  # parallel lookups per batch
+ART_EXTS      = ('.png', '.jpg', '.jpeg', '.webp')
 
 _art_lock  = threading.Lock()
 _art_index = None                  # lazy-loaded dict
@@ -543,7 +559,7 @@ def _download_cover(url: str, title: str) -> str | None:
     """Fetch the image bytes into covers\\ and return the local path."""
     try:
         ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
-        if ext not in ('.png', '.jpg', '.jpeg', '.webp'):
+        if ext not in ART_EXTS:
             ext = '.png'
         dest = COVERS_DIR / (_art_key(title) + ext)
         if dest.exists() and dest.stat().st_size > 0:
@@ -567,6 +583,215 @@ def _download_cover(url: str, title: str) -> str | None:
         return None
 
 
+def _set_art_entry(title: str, entry: dict | None):
+    """Replace a title's art index entry, deleting the cover file it drops.
+
+    Callers hold _art_lock.
+    """
+    global _art_dirty
+    idx = _load_art_index()
+    old = idx.get(title) or {}
+    old_file = old.get('file')
+    if entry is None:
+        idx.pop(title, None)
+    else:
+        idx[title] = entry
+    _art_dirty = True
+    _save_art_index()
+    new_file = (entry or {}).get('file')
+    if old_file and old_file != new_file:
+        try:
+            os.remove(old_file)
+        except OSError:
+            pass
+
+
+# ══════════════════════════════════════════════════════
+# GAME LIBRARY DATA
+# ══════════════════════════════════════════════════════
+# library.json — {"version": 1, "games": {rom_id: {...}}}, keyed by the stable
+# ROM id. An entry holds only what has been set for that game:
+#   favorite, hidden   bool
+#   title              display name replacing the one cleaned from the filename
+#   launch             {"exe": str, "args": str} overriding the console default
+#   plays, last_played, seconds   play history
+GAME_META_KEYS = ('favorite', 'hidden', 'title', 'launch')
+TITLE_MAX      = 200
+# A run shorter than this is treated as a launcher handing off to another
+# process rather than play. Its launch still counts; its time can't be followed.
+MIN_SESSION    = 10
+SESSION_TICK   = 60                # credit time while running, not just on exit
+
+_lib_lock = threading.Lock()
+_lib_data = None
+
+
+def _load_library() -> dict:
+    """Callers hold _lib_lock."""
+    global _lib_data
+    if _lib_data is None:
+        games = {}
+        try:
+            with open(LIBRARY_FILE, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict) and isinstance(data.get('games'), dict):
+                games = data['games']
+        except FileNotFoundError:
+            pass
+        except Exception:
+            # Unreadable — keep a copy rather than silently overwriting a
+            # player's history the next time anything is saved.
+            try:
+                shutil.copy2(LIBRARY_FILE, LIBRARY_FILE.with_suffix('.json.bak'))
+            except Exception:
+                pass
+        _lib_data = {'version': 1, 'games': games}
+    return _lib_data
+
+
+def _save_library() -> bool:
+    """Atomic write. Callers hold _lib_lock."""
+    if _lib_data is None:
+        return True
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = LIBRARY_FILE.with_suffix('.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(_lib_data, f, indent=1)
+        os.replace(tmp, LIBRARY_FILE)
+        return True
+    except Exception:
+        return False
+
+
+def _public_meta(g: dict | None) -> dict:
+    """The per-game fields the frontend sees, with defaults filled in."""
+    g = g or {}
+    launch = g.get('launch') or {}
+    return {
+        'favorite':   bool(g.get('favorite')),
+        'hidden':     bool(g.get('hidden')),
+        'customTitle': g.get('title') or None,
+        'plays':      int(g.get('plays') or 0),
+        'lastPlayed': g.get('last_played'),
+        'seconds':    int(g.get('seconds') or 0),
+        'launch':     {'exe': launch.get('exe', ''), 'args': launch.get('args', '')},
+    }
+
+
+def _clean_meta_patch(patch: dict) -> dict:
+    """Validate a frontend edit. Unknown keys are dropped; '' or None clears."""
+    out = {}
+    for k in GAME_META_KEYS:
+        if k not in (patch or {}):
+            continue
+        v = patch[k]
+        if k in ('favorite', 'hidden'):
+            out[k] = bool(v)
+        elif k == 'title':
+            out[k] = str(v or '').strip()[:TITLE_MAX] or None
+        elif k == 'launch':
+            v = v if isinstance(v, dict) else {}
+            exe  = str(v.get('exe')  or '').strip()
+            args = str(v.get('args') or '').strip()
+            out[k] = {'exe': exe, 'args': args} if (exe or args) else None
+    return out
+
+
+def _apply_meta_patch(rom_id: str, patch: dict) -> dict:
+    """Merge a cleaned patch into a game's entry. Callers hold _lib_lock."""
+    games = _load_library()['games']
+    g = dict(games.get(rom_id) or {})
+    for k, v in patch.items():
+        if v in (None, False):
+            g.pop(k, None)          # keep the file to what's actually been set
+        else:
+            g[k] = v
+    if g:
+        games[rom_id] = g
+    else:
+        games.pop(rom_id, None)
+    return g
+
+
+def _split_args(s: str) -> list:
+    """Split a user-typed argument string the way a Windows shell would.
+
+    shlex in POSIX mode treats backslashes as escapes, which mangles Windows
+    paths; non-POSIX mode keeps them but leaves the quotes on, so strip those.
+    """
+    out = []
+    for tok in shlex.split(s or '', posix=False):
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in '"\'':
+            tok = tok[1:-1]
+        if tok:
+            out.append(tok)
+    return out
+
+
+def _build_argv(exe: str, flag: str, custom_args: str, rom_path: str) -> list:
+    """Command line for a launch.
+
+    Custom arguments may place the ROM with {rom}; without it the ROM goes last.
+    The default flag is split too — detected flags like DuckStation's
+    '-fullscreen --' used to reach the emulator as one quoted argument.
+    """
+    if custom_args:
+        toks = _split_args(custom_args)
+        if any('{rom}' in t for t in toks):
+            return [exe] + [t.replace('{rom}', rom_path) for t in toks]
+        return [exe] + toks + [rom_path]
+    return [exe] + _split_args(flag) + [rom_path]
+
+
+def _version_tuple(v: str):
+    """'v1.2.0-beta' -> (1, 2, 0, 0); a final release outranks its pre-release."""
+    m = re.match(r'\s*v?(\d+)\.(\d+)(?:\.(\d+))?(?:[-+.]?(.+))?', v or '')
+    if not m:
+        return None
+    major, minor, patch, pre = m.groups()
+    return (int(major), int(minor), int(patch or 0), 0 if pre else 1)
+
+
+# ══════════════════════════════════════════════════════
+# WINDOW GEOMETRY
+# ══════════════════════════════════════════════════════
+WIN_DEFAULT = {'width': 1280, 'height': 820}
+WIN_MIN     = (900, 600)
+
+
+def _rect_on_screen(x: int, y: int, w: int, h: int) -> bool:
+    """True if the rectangle overlaps a connected monitor. A window saved on a
+    display that's since been unplugged would otherwise open out of reach."""
+    try:
+        r = ctypes.wintypes.RECT(x, y, x + w, y + h)
+        MONITOR_DEFAULTTONULL = 0
+        return bool(ctypes.windll.user32.MonitorFromRect(ctypes.byref(r),
+                                                          MONITOR_DEFAULTTONULL))
+    except Exception:
+        return False
+
+
+def _saved_geometry(settings: dict) -> dict | None:
+    """The stored window geometry, or None if there's nothing usable."""
+    g = settings.get('window')
+    if not isinstance(g, dict):
+        return None
+    try:
+        w = max(int(g['width']),  WIN_MIN[0])
+        h = max(int(g['height']), WIN_MIN[1])
+    except (KeyError, TypeError, ValueError):
+        return None
+    out = {'width': w, 'height': h, 'maximized': bool(g.get('maximized'))}
+    try:
+        x, y = int(g['x']), int(g['y'])
+        if _rect_on_screen(x, y, w, h):
+            out['x'], out['y'] = x, y
+    except (KeyError, TypeError, ValueError):
+        pass
+    return out
+
+
 # ══════════════════════════════════════════════════════
 # PYWEBVIEW JS API
 # ══════════════════════════════════════════════════════
@@ -579,10 +804,39 @@ class EmuHubAPI:
         self._is_maximized       = False
         self._key_decrypt_failed = False
         self._art_pool           = None
+        self._normal_geo         = None   # size/position to restore to
+        self._geo_saved          = False
+        self._pads               = None   # ControllerService, once the window exists
         self._load_key_internal()
 
     def set_window(self, win):
         self._window = win
+        if ControllerService and self._pads is None:
+            self._pads = ControllerService(self._pad_emit)
+            self._pads.start()
+
+    # ── Controllers ──────────────────────────────────
+    def _pad_emit(self, evt: dict):
+        if self._window:
+            self._window.evaluate_js(
+                f'window.__padEvent && window.__padEvent({json.dumps(evt)})')
+
+    def controller_status(self) -> dict:
+        if not self._pads:
+            return {'backend': None, 'error': 'Controller support is unavailable in this build.'}
+        return self._pads.status()
+
+    def controller_state(self) -> list:
+        return self._pads.snapshot() if self._pads else []
+
+    def controller_active(self, active: bool):
+        """The page reports focus: controllers are only held while it has it."""
+        if self._pads:
+            self._pads.set_active(bool(active))
+
+    def controller_rumble(self, device_id: int):
+        if self._pads:
+            self._pads.rumble(device_id)
 
     def _load_key_internal(self):
         try:
@@ -805,16 +1059,21 @@ class EmuHubAPI:
             entry = _load_art_index().get(title)
         if not entry:
             return None
-        url = entry.get('url')
+        url   = entry.get('url')
+        local = entry.get('file')
+        # Checked before the miss logic: a cover picked from an image file has
+        # a file but no URL, and must not be mistaken for a remembered miss.
+        if local and os.path.isfile(local):
+            return {'url': url, 'local': Path(local).as_uri(),
+                    'custom': bool(entry.get('pinned')),
+                    'error': None, 'bad_key': False}
         if not url:
+            if entry.get('pinned'):
+                return None         # the chosen file is gone — resolve as normal
             # Remembered miss — honour it until it goes stale.
             if time.time() - entry.get('ts', 0) < ART_MISS_TTL:
                 return {'url': None, 'local': None, 'error': None, 'bad_key': False}
             return None
-        local = entry.get('file')
-        if local and os.path.isfile(local):
-            return {'url': url, 'local': Path(local).as_uri(),
-                    'error': None, 'bad_key': False}
         # Known URL but the file is gone (or predates local caching) — re-pull it.
         local = _download_cover(url, title)
         if local:
@@ -894,8 +1153,16 @@ class EmuHubAPI:
         if not titles:
             return {'results': {}, 'error': None, 'bad_key': False}
         if not self._api_key:
-            return {'results': {t: {'url': None, 'local': None} for t in titles},
-                    'error': None, 'bad_key': False}
+            # No key means no new lookups — but covers already on disk,
+            # including ones the user picked by hand, should still show.
+            results = {}
+            for t in titles:
+                hit = self._cached_art(t) or {}
+                results[t] = {'url': hit.get('url'), 'local': hit.get('local'),
+                              'custom': bool(hit.get('custom'))}
+            with _art_lock:
+                _save_art_index()
+            return {'results': results, 'error': None, 'bad_key': False}
 
         # One long-lived pool: its worker threads persist between batches, and
         # so do the kept-alive connections they hold. A per-batch pool would
@@ -906,7 +1173,8 @@ class EmuHubAPI:
 
         results, error, bad_key = {}, None, False
         for title, res in zip(titles, self._art_pool.map(self._resolve_art, titles)):
-            results[title] = {'url': res.get('url'), 'local': res.get('local')}
+            results[title] = {'url': res.get('url'), 'local': res.get('local'),
+                              'custom': bool(res.get('custom'))}
             if res.get('bad_key'):
                 bad_key = True
             if res.get('error') and not error:
@@ -916,15 +1184,91 @@ class EmuHubAPI:
         return {'results': results, 'error': error, 'bad_key': bad_key}
 
     def clear_art_cache(self) -> dict:
-        """Forget every resolved title. Used when the API key changes, since
-        misses recorded under a rejected key would otherwise stick around."""
+        """Forget every automatically resolved title. Used when the API key
+        changes, since misses recorded under a rejected key would otherwise
+        stick around. Covers the user chose by hand are kept."""
         global _art_index, _art_dirty
         try:
             with _art_lock:
-                _art_index = {}
+                keep = {t: e for t, e in _load_art_index().items() if e.get('pinned')}
+                _art_index = keep
                 _art_dirty = True
                 _save_art_index()
-            shutil.rmtree(COVERS_DIR, ignore_errors=True)
+            keep_files = {os.path.normcase(os.path.abspath(e['file']))
+                          for e in keep.values() if e.get('file')}
+            if COVERS_DIR.is_dir():
+                for f in COVERS_DIR.iterdir():
+                    if os.path.normcase(os.path.abspath(f)) not in keep_files:
+                        try:
+                            f.unlink()
+                        except OSError:
+                            pass
+            return {'ok': True}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex)}
+
+    # ── Using your own cover image ───────────────────
+    def browse_image(self):
+        """Pick an image file. Returns {path, preview} without copying it yet."""
+        if not self._window:
+            return None
+        try:
+            res = self._window.create_file_dialog(
+                webview.FileDialog.OPEN, allow_multiple=False,
+                file_types=('Images (*.png;*.jpg;*.jpeg;*.webp)',))
+            if not res:
+                return None
+            p = Path(res[0])
+            return {'path': str(p), 'preview': p.as_uri()}
+        except Exception:
+            return None
+
+    def set_custom_art_file(self, title: str, path: str) -> dict:
+        """Pin an image from disk to a title. The file is copied into covers\\
+        so moving or deleting the original doesn't take the cover with it."""
+        try:
+            src = Path(path or '')
+            ext = src.suffix.lower()
+            if not title or ext not in ART_EXTS or not src.is_file():
+                return {'ok': False, 'error': 'Choose a PNG, JPG or WebP image.'}
+            data = src.read_bytes()
+            if not data or len(data) > ART_MAX_BYTES:
+                return {'ok': False, 'error': 'That image is empty or larger than 8 MB.'}
+            COVERS_DIR.mkdir(parents=True, exist_ok=True)
+            dest = COVERS_DIR / f'{_art_key(title)}-file-{hashlib.sha1(data).hexdigest()[:8]}{ext}'
+            tmp  = dest.with_suffix(ext + '.tmp')
+            tmp.write_bytes(data)
+            os.replace(tmp, dest)
+            with _art_lock:
+                _set_art_entry(title, {'url': None, 'file': str(dest),
+                                       'ts': time.time(), 'pinned': True})
+            return {'ok': True, 'url': None, 'local': dest.as_uri(), 'custom': True}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex)}
+
+    def rename_art(self, old: str, new: str) -> dict:
+        """Carry a user-supplied cover over when its game is renamed. Art is
+        keyed by title, so without this a rename would drop the chosen image."""
+        try:
+            with _art_lock:
+                global _art_dirty
+                idx = _load_art_index()
+                entry = idx.get(old)
+                if not (entry and entry.get('pinned')) or (idx.get(new) or {}).get('pinned'):
+                    return {'ok': True, 'moved': False}
+                idx[new] = entry
+                idx.pop(old, None)
+                _art_dirty = True
+                _save_art_index()
+            return {'ok': True, 'moved': True}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex)}
+
+    def reset_art(self, title: str) -> dict:
+        """Drop a title's cover so the next lookup picks one automatically."""
+        try:
+            with _art_lock:
+                _set_art_entry(title, None)
             return {'ok': True}
         except Exception as ex:
             return {'ok': False, 'error': str(ex)}
@@ -949,7 +1293,71 @@ class EmuHubAPI:
 
     # ── ROM scanning ─────────────────────────────────
     def scan_roms(self) -> list:
-        return _scan_roms(_load_settings())
+        roms = _scan_roms(_load_settings())
+        with _lib_lock:
+            games = _load_library()['games']
+            for r in roms:
+                meta = _public_meta(games.get(r['id']))
+                r['fileTitle'] = r['title']
+                if meta['customTitle']:
+                    r['title'] = meta['customTitle']
+                r.update(meta)
+        roms.sort(key=lambda r: r['title'].lower())    # renames change the order
+        return roms
+
+    # ── Per-game data ────────────────────────────────
+    def set_game_meta(self, rom_id: str, patch: dict) -> dict:
+        """Update favourite / hidden / title / launch override for one game."""
+        if not rom_id or not isinstance(patch, dict):
+            return {'ok': False, 'error': 'Invalid request'}
+        clean = _clean_meta_patch(patch)
+        launch = clean.get('launch')
+        if launch and launch['exe'] and not Path(launch['exe']).is_file():
+            return {'ok': False, 'error': f'Emulator not found:\n{launch["exe"]}'}
+        with _lib_lock:
+            g = _apply_meta_patch(rom_id, clean)
+            if not _save_library():
+                return {'ok': False, 'error': 'Could not write library.json'}
+        return {'ok': True, 'meta': _public_meta(g)}
+
+    def _credit_session(self, rom_id: str, seconds: int) -> dict:
+        with _lib_lock:
+            g = _load_library()['games'].setdefault(rom_id, {})
+            g['seconds'] = int(g.get('seconds') or 0) + int(seconds)
+            _save_library()
+            return _public_meta(g)
+
+    def _track_session(self, rom_id: str, proc):
+        """Follow a launched emulator and add its running time to the game.
+
+        Time is credited every SESSION_TICK seconds as well as at exit, so
+        closing EmuHub mid-session loses at most one tick instead of all of it.
+        """
+        started  = time.monotonic()
+        credited = 0
+        while True:
+            try:
+                proc.wait(timeout=SESSION_TICK)
+                exited = True
+            except subprocess.TimeoutExpired:
+                exited = False
+            except Exception:
+                return
+            elapsed = int(time.monotonic() - started)
+            if exited and credited == 0 and elapsed < MIN_SESSION:
+                return              # launcher stub — the real process isn't ours to follow
+            if elapsed > credited:
+                meta = self._credit_session(rom_id, elapsed - credited)
+                credited = elapsed
+            if exited:
+                break
+        if self._window:
+            try:
+                self._window.evaluate_js(
+                    'window.__onGameExited && window.__onGameExited('
+                    f'{json.dumps(rom_id)}, {json.dumps(meta)})')
+            except Exception:
+                pass
 
     # ── Game launch ──────────────────────────────────
     def launch_game(self, console: str, rom_path: str) -> dict:
@@ -964,16 +1372,23 @@ class EmuHubAPI:
                     emu = entry
                     break
 
-        if not emu:
+        rom_id = _stable_id(Path(rom_path))
+        with _lib_lock:
+            override = (_load_library()['games'].get(rom_id) or {}).get('launch') or {}
+
+        if not emu and not override.get('exe'):
             return {'ok': False, 'error': (
                 f'No emulator configured for "{console}".\n'
                 f'Open ⚙ Settings to add one.')}
+        emu = emu or {}
 
-        exe = emu.get('exe', '')
+        exe = override.get('exe') or emu.get('exe', '')
         if not exe or not Path(exe).exists():
+            where = ('this game\'s launch options' if override.get('exe')
+                     else '⚙ Settings → Emulators')
             return {'ok': False, 'error': (
                 f'Emulator executable not found:\n{exe}\n\n'
-                f'Update the path in ⚙ Settings → Emulators.')}
+                f'Update the path in {where}.')}
 
         if not Path(rom_path).exists():
             return {'ok': False, 'error': f'ROM file not found:\n{rom_path}'}
@@ -986,21 +1401,81 @@ class EmuHubAPI:
             return {'ok': False, 'error': err}
 
         try:
-            flag = emu.get('args_flag', '')
-            args = [flag, rom_path] if flag else [rom_path]
-            subprocess.Popen(
-                [exe] + args,
+            argv = _build_argv(exe, emu.get('args_flag', ''),
+                               override.get('args', ''), rom_path)
+            proc = subprocess.Popen(
+                argv,
                 cwd=str(Path(exe).parent),
                 creationflags=0x00000008,
                 close_fds=True,
             )
-            return {'ok': True}
         except PermissionError:
             return {'ok': False, 'error': (
                 f'Permission denied launching:\n{exe}\n\n'
                 f'Try running EmuHub as Administrator.')}
         except Exception as ex:
             return {'ok': False, 'error': str(ex)}
+
+        # Hand the controllers to the emulator straight away rather than
+        # waiting for the focus change to reach the page.
+        if self._pads:
+            self._pads.set_active(False)
+
+        # The launch counts whether or not its running time can be followed.
+        with _lib_lock:
+            g = _load_library()['games'].setdefault(rom_id, {})
+            g['plays'] = int(g.get('plays') or 0) + 1
+            g['last_played'] = int(time.time())
+            _save_library()
+            meta = _public_meta(g)
+        threading.Thread(target=self._track_session, args=(rom_id, proc),
+                         daemon=True, name='emuhub-session').start()
+        return {'ok': True, 'meta': meta}
+
+    # ── Updates ──────────────────────────────────────
+    def check_for_update(self) -> dict:
+        """Compare this build with the latest GitHub release.
+
+        Uses the public releases API (60 unauthenticated requests per hour per
+        IP — one per launch is nowhere near that). Fails quietly when offline.
+        """
+        try:
+            req = urllib.request.Request(
+                f'https://api.github.com/repos/{GITHUB_REPO}/releases/latest',
+                headers={'User-Agent': f'EmuHub/{APP_VERSION}',
+                         'Accept': 'application/vnd.github+json'})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                data = json.load(r)
+            tag    = str(data.get('tag_name') or '')
+            latest = _version_tuple(tag)
+            mine   = _version_tuple(APP_VERSION)
+            newer  = bool(latest and mine and latest > mine)
+            dismissed = _load_settings().get('update_dismissed') == tag
+            url = str(data.get('html_url') or '')
+            if not url.startswith(f'https://github.com/{GITHUB_REPO}/'):
+                url = f'https://github.com/{GITHUB_REPO}/releases/latest'
+            return {'ok': True, 'available': newer and not dismissed,
+                    'version': tag, 'current': APP_VERSION, 'url': url}
+        except Exception as ex:
+            return {'ok': False, 'error': str(ex), 'current': APP_VERSION}
+
+    def dismiss_update(self, tag: str) -> dict:
+        s = _load_settings()
+        s['update_dismissed'] = str(tag or '')
+        return {'ok': _save_settings(s)}
+
+    def get_version(self) -> str:
+        return APP_VERSION
+
+    def open_url(self, url: str) -> bool:
+        """Open a web page in the default browser. https only — this is reachable
+        from page script, and shouldn't be a way to launch arbitrary handlers."""
+        if not isinstance(url, str) or not url.startswith('https://'):
+            return False
+        try:
+            return bool(webbrowser.open(url))
+        except Exception:
+            return False
 
     # ── File watching ────────────────────────────────
     def start_watching(self):
@@ -1068,8 +1543,41 @@ class EmuHubAPI:
             self._window.restore()
             self._is_maximized = False
         else:
+            # Snapshot first: pywebview reports the maximized position before
+            # it reports the maximize itself, so the normal size can't be
+            # recovered from events afterwards.
+            self._normal_geo = self._current_geometry()
             self._window.maximize()
             self._is_maximized = True
+
+    def is_maximized(self) -> bool:
+        return self._is_maximized
+
+    def _current_geometry(self) -> dict | None:
+        try:
+            w = self._window
+            return {'width': int(w.width), 'height': int(w.height),
+                    'x': int(w.x), 'y': int(w.y)}
+        except Exception:
+            return None
+
+    def save_window_state(self):
+        """Remember size, position and maximized state for the next launch."""
+        if not self._window or self._geo_saved:
+            return
+        geo = self._normal_geo if self._is_maximized else self._current_geometry()
+        if not geo:
+            return
+        geo = dict(geo)
+        # Minimized windows report a position near -32000; keep the size only.
+        x, y = geo.get('x'), geo.get('y')
+        if x is None or y is None or not _rect_on_screen(x, y, geo['width'], geo['height']):
+            geo.pop('x', None); geo.pop('y', None)
+        geo['maximized'] = self._is_maximized
+        s = _load_settings()
+        s['window'] = geo
+        _save_settings(s)
+        self._geo_saved = True
 
     def resize_grip(self, edge: str):
         SC_SIZE = 0xF000
@@ -1085,7 +1593,9 @@ class EmuHubAPI:
             pass
 
     def close_window(self):
-        if self._window: self._window.destroy()
+        if not self._window: return
+        self.save_window_state()
+        self._window.destroy()
 
 
 # ══════════════════════════════════════════════════════
@@ -1153,13 +1663,41 @@ def main():
         _show_webview2_error()
         sys.exit(1)
 
-    api = EmuHubAPI()
+    api   = EmuHubAPI()
+    saved = _saved_geometry(_load_settings())
+    geo   = saved or WIN_DEFAULT
     win = webview.create_window(
         title='EmuHub', url=_html_url(), js_api=api,
-        width=1280, height=820, min_size=(900, 600),
+        width=geo['width'], height=geo['height'],
+        x=geo.get('x'), y=geo.get('y'), min_size=WIN_MIN,
         frameless=True, background_color='#0a0a0f', easy_drag=True)
     api.set_window(win)
-    webview.start(debug=False)
+    # Alt+F4 and closing from the taskbar don't go through close_window.
+    win.events.closing += api.save_window_state
+    webview.start(_restore_geometry, (api, saved), debug=False)
+
+
+def _restore_geometry(api, saved):
+    """Apply the saved geometry exactly, once the window exists.
+
+    create_window treats width/height as including a border allowance that a
+    frameless window doesn't have, so a saved 1250x780 would open as 1234x741 —
+    and shrink a little more on every launch. resize() and move() use the same
+    units the window reports, so the round trip is exact.
+    """
+    if not saved:
+        return
+    w = api._window
+    try:
+        w.resize(saved['width'], saved['height'])
+        if 'x' in saved:
+            w.move(saved['x'], saved['y'])
+        if saved['maximized']:
+            api.toggle_maximize()
+            # The page may already be up and showing the "maximize" icon.
+            w.evaluate_js('window.syncMaximizeBtn && syncMaximizeBtn(true)')
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':
