@@ -1,0 +1,3 @@
+# SDL parses this mapping list line by line; converting it to CRLF on checkout
+# leaves a stray carriage return inside each mapping. Keep it byte-for-byte.
+src/data/gamecontrollerdb.txt -text
