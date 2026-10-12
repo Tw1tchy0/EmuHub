@@ -22,7 +22,7 @@ except Exception:               # cosmetic — never block startup
 
 # Keep in step with version_info.txt — that file stamps the exe, this one is
 # what the update check compares against the latest GitHub release.
-APP_VERSION = '1.3.0-beta'
+APP_VERSION = '1.3.1-beta'
 GITHUB_REPO = 'Tw1tchy0/EmuHub'
 
 # ══════════════════════════════════════════════════════

@@ -5,11 +5,11 @@
 ;  Build with:
 ;    ISCC.exe installer\EmuHub.iss
 ;  Or pass version from BUILD.bat:
-;    ISCC.exe /DAppVersion=1.3.0 installer\EmuHub.iss
+;    ISCC.exe /DAppVersion=1.3.1 installer\EmuHub.iss
 ;
 
 #ifndef AppVersion
-  #define AppVersion "1.3.0"
+  #define AppVersion "1.3.1"
 #endif
 
 [Setup]
